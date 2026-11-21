@@ -6,6 +6,9 @@ import { Impact } from './impact.js';
 import { Shop, shopSave } from './shop.js';
 import { WorldMap, mapSave } from './world-map.js';
 import { Frenzy } from './frenzy.js';
+import { SessionEvents } from './session-events.js';
+import { Collectibles, echoSave } from './collectibles.js';
+import { QuickPanel, loadoutSave } from './loadouts.js';
 
 const $ = id => document.getElementById(id);
 const root = document.documentElement;
@@ -35,7 +38,7 @@ const modes = {
 const randomInterval = () => 20 + Math.floor(Math.random() * 26);
 const fresh = () => ({
   taps: 0, xp: 0, level: 1, best: 0, theme: 0, sound: 0, muted: false,
-  themes: [0], sounds: [0], untilBonus: randomInterval(), retention: retentionSave(), shop: shopSave(), worldMap: mapSave(),
+  themes: [0], sounds: [0], untilBonus: randomInterval(), retention: retentionSave(), shop: shopSave(), worldMap: mapSave(), echoes: [], loadouts: [null, null, null],
 });
 
 function load() {
@@ -56,6 +59,8 @@ function load() {
     base.muted = saved.muted === true;
     base.retention = retentionSave(saved.retention);
     base.shop = shopSave(saved.shop);
+    base.echoes = echoSave(saved.echoes);
+    base.loadouts = loadoutSave(saved.loadouts, base);
     base.worldMap = mapSave(saved.worldMap);
     if (!saved.worldMap) {
       base.worldMap.metrics.critical = base.retention.progress.critical;
@@ -98,9 +103,9 @@ function save() {
 }
 
 function vibrate(pattern, now = performance.now()) {
-  if (!navigator.vibrate) return;
+  if (typeof navigator.vibrate !== 'function') return;
   if (typeof pattern === 'number' && now - lastVibration < 70) return;
-  navigator.vibrate(pattern);
+  try { navigator.vibrate(pattern); } catch { return; }
   lastVibration = now;
 }
 
@@ -121,6 +126,7 @@ function applyStyle() {
   audio.setMuted(state.muted);
   $('mute').setAttribute('aria-pressed', state.muted);
   $('mute').textContent = state.muted ? '♫' : '♪';
+  quick?.renderIfOpen();
 }
 
 function message(text, now, duration = 1800) {
@@ -187,6 +193,7 @@ function action(x, y, key = -1, slide = 0) {
   state.taps++;
   state.best = Math.max(state.best, combo);
   const multiplier = Math.min(10, 1 + Math.floor(combo / 4));
+  const mirrored = session.action(now, combo);
   const tuning = shop.effects;
   const flow = frenzy.tap(mode, now);
   if (flow.rhythm) worldMap.record('rhythm');
@@ -212,7 +219,9 @@ function action(x, y, key = -1, slide = 0) {
   else renderHit();
   impactFx.echo(now, x, y, accent, combo);
   impactFx.trace(x, y, now);
-  audio.play(state.sound, combo, fever || nova, mode);
+  const pitch = audio.play(state.sound, combo, fever || nova, mode, mirrored);
+  session.note(pitch, combo, fever || nova);
+  if (mode === 'keys') session.switch(now, x, y, accent);
   if (critical) {
     audio.critical();
     vibrate([12, 28, 18], now);
@@ -294,9 +303,10 @@ function pop(bubble, chain = null, drag = null) {
   if (chain) {
     chain.size++;
     retention.chain(chain.size, now);
+    session.chain(now, chain.size, bubble.x, bubble.y, themes[state.theme][1]);
     worldMap.refresh();
     effects.emit(bubble.x, bubble.y, themes[state.theme][1], reducedMotion.matches ? 4 : (now < feverEnd ? 30 : 10));
-    audio.play(state.sound, Math.max(1, combo), now < feverEnd, 'bubbles');
+    audio.play(state.sound, Math.max(1, combo), now < feverEnd, 'bubbles', session.active(now));
   } else {
     if (drag) {
       if (now - drag.lastPop > 1600) drag.count = 0;
@@ -456,6 +466,9 @@ $('reset-form').addEventListener('submit', event => {
   state = { ...fresh(), muted: state.muted };
   impactFx.reset();
   shop.use(state.shop);
+  session.reset();
+  collectibles.use(state.echoes);
+  quick.use(state.loadouts);
   frenzy.reset();
   worldMap.use(state.worldMap);
   clearTimeout(noticeTimer);
@@ -517,6 +530,7 @@ function frame(now) {
   const cooled = Math.max(0, combo - Math.floor(Math.max(0, now - last - 470) / 140));
   retention.frame(now);
   frenzy.frame(now);
+  session.frame(now, elapsed / 1000);
   if (!fever && !nova && now >= chargeHold && now - last > 390) energy = Math.max(0, energy - dt * 13);
   const multiplier = '×' + Math.min(10, 1 + Math.floor(cooled / 4));
   if ($('combo').textContent !== multiplier) $('combo').textContent = multiplier;
@@ -544,7 +558,7 @@ function frame(now) {
   }
   if (dt > 0) {
     if (mode === 'bubbles') drawBubbles(now);
-    effects.draw(dt, impactFx.hold?.engaged ? impactFx.hold.ratio + .2 : 0);
+    effects.draw(dt, impactFx.hold?.engaged ? impactFx.hold.ratio + .2 : 0, session.active(now));
   }
   requestAnimationFrame(frame);
 }
@@ -558,12 +572,32 @@ function notice(text) {
   noticeTimer = setTimeout(() => { banner.hidden = true; }, 2400);
 }
 
+const collectibles = new Collectibles($('echo-list'), name => {
+  notice('✦ Eco raro · ' + name);
+  audio.celebrate(2);
+  vibrate([11, 25, 14]);
+  save();
+});
+collectibles.use(state.echoes);
+const session = new SessionEvents(field, $('mirror-status'), {
+  emit: (...args) => effects.emit(...args),
+  mirror() {
+    audio.horizon(2);
+    burst('ESPELHO!', 32);
+  },
+  double(isSwitch) { audio.echo(isSwitch ? 4 : 2); },
+  collect: id => collectibles.unlock(id),
+  reduced: () => reducedMotion.matches,
+});
+let quick;
 const shop = new Shop(state.shop, {
+  onEarn: amount => session.earned(amount),
   apply(skin, tuning) {
     field.dataset.skin = skin.id;
     effects.shape = skin.shape;
     effects.density = tuning.particleRate;
     effects.wave = tuning.wave;
+    quick?.renderIfOpen();
   },
   persist: save,
   feedback() {
@@ -580,9 +614,26 @@ const shop = new Shop(state.shop, {
   },
 });
 
+quick = new QuickPanel({
+  read: () => ({ theme: state.theme, skin: state.shop.equipped, sound: state.sound }),
+  equip(slot) {
+    if (!state.themes.includes(slot.theme) || !state.sounds.includes(slot.sound) || !shop.equip(slot.skin)) return false;
+    state.theme = slot.theme;
+    state.sound = slot.sound;
+    applyStyle();
+    audio.play(state.sound, 1, false, mode);
+    save();
+    return true;
+  },
+  save,
+  describe: slot => themes[slot.theme][0] + ' · ' + shop.skinName(slot.skin) + ' · ' + sounds[slot.sound][0],
+});
+quick.use(state.loadouts);
+
 const impactFx = new Impact(field, audio, effects, () => reducedMotion.matches, {
   start(now) {
     shop.earn('nova');
+    if (now < frenzy.end) collectibles.unlock('overlap');
     if (mode === 'pulse') worldMap.record('pulseNova');
     if (mode === 'keys') worldMap.record('switchNova');
     if (mode === 'pulse') retention.trophies.update({ nova: 1 });
@@ -601,6 +652,7 @@ const impactFx = new Impact(field, audio, effects, () => reducedMotion.matches, 
     combo = Math.max(0, combo - Math.floor(Math.max(0, now - last - 470) / 140)) + bonus;
     last = now;
     state.best = Math.max(state.best, combo);
+    session.best('combo', combo);
     retention.trophies.update({ rhythm: combo, pulse50: combo, pulse100: combo, gravity: Number(ratio >= 1) });
     burst(bonus ? '+' + bonus + ' COMBO' : 'GRAVIDADE', Math.round(24 + ratio * 85), core);
     velocity = 10 + ratio * 12;
@@ -616,6 +668,10 @@ const retention = new Retention(state, {
   audio, vibrate, burst, notice, point: localPoint, cosmetic: unlockCosmetic, grant, save,
   reduced: () => reducedMotion.matches,
   fragments: (event, value) => shop.earn(event, value),
+  crystalBreak(now) {
+    const cooled = Math.max(0, combo - Math.floor(Math.max(0, now - last - 470) / 140));
+    if (cooled >= 20) collectibles.unlock('crystal');
+  },
   tuning: () => shop.effects,
   hit: (now, release) => impactFx.hit(now, () => {
     release();

@@ -45,16 +45,19 @@ export class Synth {
     oscillator.stop(start + duration + .01);
   }
 
-  play(profile, combo, fever, mode) {
-    if (!this.context || this.muted) return;
-    const now = this.context.currentTime;
+  play(profile, combo, fever, mode, mirrored = false) {
     const step = Math.min(combo - 1, 14);
-    const pitch = (mode === 'bubbles' ? 246.94 : 220) * 2 ** ((scale[step % 5] + 12 * Math.floor(step / 5)) / 12);
+    const degree = step % 5;
+    const semitones = (mirrored ? scale[4 - degree] : scale[degree]) + 12 * Math.floor(step / 5);
+    const pitch = (mode === 'bubbles' ? 246.94 : 220) * 2 ** (semitones / 12);
+    if (!this.context || this.muted) return pitch;
+    const now = this.context.currentTime;
     const { wave, attack, tail, slide } = profiles[profile];
     this.tone(pitch, pitch, wave, wave === 'square' ? .043 : .12, tail, now);
     this.tone(attack, attack * slide, 'sine', .15, mode === 'keys' ? .028 : .048, now);
     if (combo >= 10) this.tone(82, 43, 'sine', .16, .13, now);
     if (fever) this.tone(pitch * 2, pitch * 2, 'sine', .045, .21, now + .028);
+    return pitch;
   }
 
   echo(note) {

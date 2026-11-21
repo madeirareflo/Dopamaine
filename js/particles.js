@@ -45,7 +45,7 @@ export class Effects {
     }
   }
 
-  draw(dt, gravity = 0) {
+  draw(dt, gravity = 0, mirrored = false) {
     const { ctx } = this;
     ctx.clearRect(0, 0, this.width, this.height);
     const drag = Math.exp(-2.7 * dt);
@@ -55,7 +55,7 @@ export class Effects {
       dot.x += dot.vx * dt;
       dot.y += dot.vy * dt;
       dot.vx *= drag;
-      dot.vy = dot.vy * drag + 125 * dt;
+      dot.vy = dot.vy * drag + (mirrored ? -125 : 125) * dt;
       if (gravity) {
         const pull = gravity * dt * 22;
         dot.vx += (this.width / 2 - dot.x) * pull;

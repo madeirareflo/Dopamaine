@@ -20,8 +20,21 @@
   <div class="brand"><img src="./icons/icon.svg" alt="" width="42" height="42"><div><h1>prisma<span>.</span></h1><p>Playground sensorial</p></div></div>
   <div class="tools"><button type="button" id="install" hidden>Instalar App</button><button type="button" id="mute" aria-label="Mudo" aria-pressed="false" title="Mudo">♪</button><button type="button" id="settings" aria-label="Personalizar" title="Personalizar">⚙</button></div>
 </header>
+<section id="quick-panel" aria-labelledby="quick-title" hidden>
+  <header><strong id="quick-title">Predefinições</strong><button type="button" id="close-quick" aria-label="Fechar atalhos">×</button></header>
+  <div class="quick-slots">
+    <div><button type="button" data-loadout="0">Slot 1</button><button type="button" data-save-slot="0" aria-label="Salvar slot 1">Salvar</button><small></small></div>
+    <div><button type="button" data-loadout="1">Slot 2</button><button type="button" data-save-slot="1" aria-label="Salvar slot 2">Salvar</button><small></small></div>
+    <div><button type="button" data-loadout="2">Slot 3</button><button type="button" data-save-slot="2" aria-label="Salvar slot 3">Salvar</button><small></small></div>
+  </div>
+  <p id="quick-feedback" role="status"></p>
+  <details id="session-records"><summary>Recordes da sessão</summary>
+    <dl><div><dt>Combo</dt><dd data-session="combo">0</dd></div><div><dt>Cadeia</dt><dd data-session="chain">0</dd></div><div><dt>Toques/s</dt><dd data-session="rate">0</dd></div><div><dt>Fragmentos ganhos</dt><dd data-session="fragments">0</dd></div></dl>
+  </details>
+  <details><summary>Ecos raros</summary><ul id="echo-list"></ul></details>
+</section>
 <section class="stage" aria-label="Área de jogo">
-  <div class="hud"><span id="mode-name">PULSO</span><div class="hud-tools"><button type="button" id="streak" aria-label="Ofensiva"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M13 2c1 5-4 6-3 10-2-1-2-3-2-4-3 3-4 6-3 9a7 7 0 0 0 14-1c0-5-3-8-6-14Zm-1 19c-2 0-3-2-2-4l2-3c0 2 3 3 3 5 0 1-1 2-3 2Z"/></svg><span>0</span></button><button type="button" id="trophies" aria-label="Troféus"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M7 3h10v5c0 4-2 6-5 6S7 12 7 8V3Zm0 2H3v2c0 3 2 4 5 4m9-6h4v2c0 3-2 4-5 4m-4 3v5m-4 2h8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span id="trophy-badge" hidden></span></button><button type="button" id="shop" aria-label="Loja"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 9h16l-1 12H5L4 9Zm4 1V7a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/></svg><span hidden aria-hidden="true"></span></button><button type="button" id="world-map" aria-label="Mapa de Mundos"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2V5Zm6-2v16m6-14v16"/></svg><span hidden aria-hidden="true"></span></button></div><div class="combo"><small>COMBO</small><strong id="combo">×1</strong></div></div>
+  <div class="hud"><span id="mode-name">PULSO</span><div class="hud-tools"><button type="button" id="streak" aria-label="Ofensiva"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M13 2c1 5-4 6-3 10-2-1-2-3-2-4-3 3-4 6-3 9a7 7 0 0 0 14-1c0-5-3-8-6-14Zm-1 19c-2 0-3-2-2-4l2-3c0 2 3 3 3 5 0 1-1 2-3 2Z"/></svg><span>0</span></button><button type="button" id="trophies" aria-label="Troféus"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M7 3h10v5c0 4-2 6-5 6S7 12 7 8V3Zm0 2H3v2c0 3 2 4 5 4m9-6h4v2c0 3-2 4-5 4m-4 3v5m-4 2h8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span id="trophy-badge" hidden></span></button><button type="button" id="shop" aria-label="Loja"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 9h16l-1 12H5L4 9Zm4 1V7a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/></svg><span hidden aria-hidden="true"></span></button><button type="button" id="world-map" aria-label="Mapa de Mundos"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2V5Zm6-2v16m6-14v16"/></svg><span hidden aria-hidden="true"></span></button><button type="button" id="quick" aria-label="Predefinições e sessão" aria-expanded="false" aria-controls="quick-panel"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16M8 5v4m8 1v4m-6 1v4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button></div><div class="combo"><small>COMBO</small><strong id="combo">×1</strong></div></div>
   <div id="field" class="field">
     <div class="orbit" aria-hidden="true"></div>
     <button type="button" id="core" class="core" aria-label="Pulsar"><span></span></button>
@@ -38,6 +51,7 @@
         <path class="crack-two" d="m33 27 13 5 8-3m-27 5-9 4-6-6" fill="none" stroke="#fff" stroke-width="2"/>
       </svg><small></small>
     </button>
+    <div id="mirror-status" role="status" hidden></div>
     <div id="frenzy-status" role="status" hidden></div>
     <div id="streak-notice" role="status" hidden></div>
     <canvas id="effects" aria-hidden="true"></canvas>

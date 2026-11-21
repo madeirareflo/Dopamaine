@@ -53,6 +53,7 @@ export class Retention {
     }, (kind, now) => {
       if (kind === 'daily') this.streak.ignite(now);
       this.state.retention.crystals++;
+      game.crystalBreak(now);
       if (kind === 'bonus' || kind === 'milestone') game.cosmetic();
       this.sync();
       audio.celebrate(2);

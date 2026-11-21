@@ -68,10 +68,11 @@ export function shopEffects(levels) {
 }
 
 export class Shop {
-  constructor(data, { apply, persist, feedback }) {
+  constructor(data, { apply, persist, feedback, onEarn = () => {} }) {
     this.apply = apply;
     this.persist = persist;
     this.feedback = feedback;
+    this.onEarn = onEarn;
     this.button = document.querySelector('#shop');
     this.panel = document.querySelector('#shop-panel');
     this.list = document.querySelector('#shop-list');
@@ -128,7 +129,21 @@ export class Shop {
     data.remainder = extra % 5;
     data.balance = Math.min(MAX_BALANCE, before + value + Math.floor(extra / 5));
     if ((before < this.threshold) !== (data.balance < this.threshold)) this.updateIndicator();
-    if (this.panel.open && before !== data.balance) this.render();
+    if (before === data.balance) return;
+    this.onEarn(data.balance - before);
+    if (this.panel.open) this.render();
+  }
+
+  skinName(id) {
+    return skins.find(item => item.id === id)?.name ?? '';
+  }
+
+  equip(id) {
+    if (!this.data.owned.includes(id)) return false;
+    this.data.equipped = id;
+    this.apply(skins.find(item => item.id === id), this.effects);
+    if (this.panel.open) this.render();
+    return true;
   }
 
   updateIndicator() {
