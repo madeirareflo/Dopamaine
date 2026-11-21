@@ -3,6 +3,7 @@ import { Effects } from './particles.js';
 import { Retention, retentionSave } from './retention.js';
 
 import { Impact } from './impact.js';
+import { Shop, shopSave } from './shop.js';
 
 const $ = id => document.getElementById(id);
 const root = document.documentElement;
@@ -32,7 +33,7 @@ const modes = {
 const randomInterval = () => 20 + Math.floor(Math.random() * 26);
 const fresh = () => ({
   taps: 0, xp: 0, level: 1, best: 0, theme: 0, sound: 0, muted: false,
-  themes: [0], sounds: [0], untilBonus: randomInterval(), retention: retentionSave(),
+  themes: [0], sounds: [0], untilBonus: randomInterval(), retention: retentionSave(), shop: shopSave(),
 });
 
 function load() {
@@ -52,6 +53,7 @@ function load() {
     }
     base.muted = saved.muted === true;
     base.retention = retentionSave(saved.retention);
+    base.shop = shopSave(saved.shop);
     return base;
   } catch {
     return fresh();
@@ -145,11 +147,12 @@ function charge(amount, now) {
   if (now < feverEnd || now < impactFx.novaEnd) return false;
   energy = Math.min(100, energy + amount);
   if (energy < 100) return false;
-  feverEnd = now + 8000;
+  feverEnd = now + shop.effects.feverDuration;
   energy = 0;
   message('FEVER MODE!', now, 2200);
   audio.reward(true);
   vibrate([14, 28, 14, 28, 25], now);
+  shop.earn('fever');
   retention.fever(mode, now);
   return true;
 }
@@ -174,13 +177,15 @@ function action(x, y, key = -1, slide = 0) {
   state.taps++;
   state.best = Math.max(state.best, combo);
   const multiplier = Math.min(10, 1 + Math.floor(combo / 4));
-  const started = charge(4 + multiplier * .75, now);
+  const tuning = shop.effects;
+  const started = charge((4 + multiplier * .75) * tuning.feverRate, now);
   const fever = now < feverEnd;
-  if (fever) impactFx.novaTap(now);
+  if (fever) impactFx.novaTap(now, tuning.novaDuration);
   const nova = now < impactFx.novaEnd;
-  const critical = Math.random() < (nova ? .25 : fever ? .15 : .07);
+  const critical = Math.random() < (nova ? .25 : fever ? .15 : .07) + tuning.critical;
+  shop.earn(critical ? 'critical' : 'tap');
   const label = started ? 'FEVER!' : combo === 25 ? 'INSANE!' : combo === 8 ? 'NICE!' : combo === 16 ? '×5' : '+1';
-  const count = mode === 'keys' ? 7 : 13;
+  const count = mode === 'keys' ? 7 + tuning.switchSparks : 13;
   const accent = themes[state.theme][1];
   const renderHit = () => effects.emit(x, y, critical ? '#ffe29c' : accent,
     reducedMotion.matches ? 4 : count * (nova ? 4 : fever ? 3 : 1) + (critical ? 25 : 0),
@@ -202,7 +207,9 @@ function action(x, y, key = -1, slide = 0) {
     vibrate([12, 32, 16], now);
   } else if (!started) vibrate(10, now);
   if (!critical) impact = Math.min(4, 1 + multiplier * .3);
-  gainXP(multiplier * (fever || nova ? 2 : 1) * (critical ? 3 : 1), now);
+  const xp = multiplier * (fever || nova ? 2 : 1) * (critical ? 3 : 1);
+  const switchBonus = mode === 'keys' && multiplier >= 2 ? Math.round(xp * tuning.switchXP) : 0;
+  gainXP(xp + switchBonus, now);
   if (bonus.hidden && --state.untilBonus <= 0) bonus.hidden = false;
   retention.tap(mode, combo, critical, state.muted, pointers.size, key, slide, now);
   meter();
@@ -280,13 +287,13 @@ function pop(bubble, chain = null, drag = null) {
       drag.count++;
     }
     action(bubble.x, bubble.y, -1, drag?.count ?? 0);
-    if (Math.random() >= .48) return;
+    if (Math.random() >= shop.effects.chainChance) return;
     chain = { size: 1, marked: new Set([bubble]) };
   }
   const adjacent = bubbles.filter(other => !other.element.hidden && !chain.marked.has(other) &&
-    Math.hypot(other.x - bubble.x, other.y - bubble.y) < bubble.diameter * 2.45);
+    Math.hypot(other.x - bubble.x, other.y - bubble.y) < bubble.diameter * shop.effects.chainRange);
   for (const [index, other] of adjacent.slice(0, 2).entries()) {
-    if (chain.marked.size >= 8) break;
+    if (chain.marked.size >= shop.effects.chainLimit) break;
     chain.marked.add(other);
     const timer = setTimeout(() => {
       pendingChain.delete(timer);
@@ -431,6 +438,7 @@ $('reset-form').addEventListener('submit', event => {
   }
   state = { ...fresh(), muted: state.muted };
   impactFx.reset();
+  shop.use(state.shop);
   clearTimeout(noticeTimer);
   $('streak-notice').hidden = true;
   retention.reset(state);
@@ -495,7 +503,7 @@ function frame(now) {
   const feverLabel = nova ? 'SUPERNOVA · ' + Math.ceil((impactFx.novaEnd - now) / 1000) + ' s'
     : fever ? 'SOBRECARGA · ' + Math.floor(impactFx.novaCharge * 100 / 36) + '%' : 'FEVER';
   if ($('fever-label').textContent !== feverLabel) $('fever-label').textContent = feverLabel;
-  const displayedCharge = nova ? (impactFx.novaEnd - now) / 50 : fever ? impactFx.novaCharge * 100 / 36 : energy;
+  const displayedCharge = nova ? (impactFx.novaEnd - now) * 100 / impactFx.novaDuration : fever ? impactFx.novaCharge * 100 / 36 : energy;
   if ($('fever').value !== displayedCharge) $('fever').value = displayedCharge;
   root.classList.toggle('fever', fever);
   if (fever && !reducedMotion.matches) field.style.setProperty('--hue', (now / 6 % 360) + 'deg');
@@ -530,8 +538,31 @@ function notice(text) {
   noticeTimer = setTimeout(() => { banner.hidden = true; }, 2400);
 }
 
+const shop = new Shop(state.shop, {
+  apply(skin, tuning) {
+    field.dataset.skin = skin.id;
+    effects.shape = skin.shape;
+    effects.density = tuning.particleRate;
+    effects.wave = tuning.wave;
+  },
+  persist: save,
+  feedback() {
+    audio.unlock();
+    audio.reward();
+    vibrate([12, 24, 16]);
+    const confetti = $('shop-confetti');
+    confetti.getAnimations().forEach(animation => animation.cancel());
+    confetti.animate([
+      { opacity: 1, transform: 'translateX(-50%) scale(.35)' },
+      { opacity: .85, transform: 'translateX(-50%) scale(1.1)', offset: .35 },
+      { opacity: 0, transform: 'translateX(-50%) scale(2.35)' },
+    ], { duration: reducedMotion.matches ? 160 : 620 });
+  },
+});
+
 const impactFx = new Impact(field, audio, effects, () => reducedMotion.matches, {
   start(now) {
+    shop.earn('nova');
     if (mode === 'pulse') retention.trophies.update({ nova: 1 });
     burst('SUPERNOVA!', 82);
     vibrate([16, 30, 28], now);
@@ -561,6 +592,8 @@ const impactFx = new Impact(field, audio, effects, () => reducedMotion.matches, 
 const retention = new Retention(state, {
   audio, vibrate, burst, notice, point: localPoint, cosmetic: unlockCosmetic, grant, save,
   reduced: () => reducedMotion.matches,
+  fragments: (event, value) => shop.earn(event, value),
+  tuning: () => shop.effects,
   hit: (now, release) => impactFx.hit(now, () => {
     release();
     impact = Math.max(impact, 5);

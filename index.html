@@ -21,7 +21,7 @@
   <div class="tools"><button type="button" id="install" hidden>Instalar App</button><button type="button" id="mute" aria-label="Mudo" aria-pressed="false" title="Mudo">♪</button><button type="button" id="settings" aria-label="Personalizar" title="Personalizar">⚙</button></div>
 </header>
 <section class="stage" aria-label="Área de jogo">
-  <div class="hud"><span id="mode-name">PULSO</span><div class="hud-tools"><button type="button" id="streak" aria-label="Ofensiva"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M13 2c1 5-4 6-3 10-2-1-2-3-2-4-3 3-4 6-3 9a7 7 0 0 0 14-1c0-5-3-8-6-14Zm-1 19c-2 0-3-2-2-4l2-3c0 2 3 3 3 5 0 1-1 2-3 2Z"/></svg><span>0</span></button><button type="button" id="trophies" aria-label="Troféus"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M7 3h10v5c0 4-2 6-5 6S7 12 7 8V3Zm0 2H3v2c0 3 2 4 5 4m9-6h4v2c0 3-2 4-5 4m-4 3v5m-4 2h8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span id="trophy-badge" hidden></span></button></div><div class="combo"><small>COMBO</small><strong id="combo">×1</strong></div></div>
+  <div class="hud"><span id="mode-name">PULSO</span><div class="hud-tools"><button type="button" id="streak" aria-label="Ofensiva"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M13 2c1 5-4 6-3 10-2-1-2-3-2-4-3 3-4 6-3 9a7 7 0 0 0 14-1c0-5-3-8-6-14Zm-1 19c-2 0-3-2-2-4l2-3c0 2 3 3 3 5 0 1-1 2-3 2Z"/></svg><span>0</span></button><button type="button" id="trophies" aria-label="Troféus"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M7 3h10v5c0 4-2 6-5 6S7 12 7 8V3Zm0 2H3v2c0 3 2 4 5 4m9-6h4v2c0 3-2 4-5 4m-4 3v5m-4 2h8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span id="trophy-badge" hidden></span></button><button type="button" id="shop" aria-label="Loja"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 9h16l-1 12H5L4 9Zm4 1V7a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/></svg><span hidden aria-hidden="true"></span></button></div><div class="combo"><small>COMBO</small><strong id="combo">×1</strong></div></div>
   <div id="field" class="field">
     <div class="orbit" aria-hidden="true"></div>
     <button type="button" id="core" class="core" aria-label="Pulsar"><span></span></button>
@@ -85,6 +85,17 @@
   <p id="streak-shields"></p>
   <p id="streak-next"></p>
   <progress aria-label="Próxima cor da chama"></progress>
+</dialog>
+<dialog id="shop-panel" aria-labelledby="shop-title">
+  <form method="dialog"><header><h2 id="shop-title">Loja</h2><button aria-label="Fechar loja">×</button></header></form>
+  <p class="shop-wallet"><span>Fragmentos de Prisma</span> <strong><span aria-hidden="true">◈</span> <output id="shop-balance">0</output></strong></p>
+  <nav class="shop-tabs" aria-label="Seções da loja">
+    <button type="button" data-shop-tab="upgrades" aria-pressed="true">Upgrades</button>
+    <button type="button" data-shop-tab="skins" aria-pressed="false">Skins</button>
+  </nav>
+  <p id="shop-status" role="status"></p>
+  <div id="shop-list" aria-label="Itens da loja" tabindex="0"></div>
+  <div id="shop-confetti" aria-hidden="true">✧ ◈ ✦ ◇ ✧</div>
 </dialog>
 </body>
 </html>

@@ -33,14 +33,15 @@ export class Impact {
     this.pending.push(release);
   }
 
-  novaTap(now) {
+  novaTap(now, duration = 5000) {
     if (now < this.novaEnd) return;
     const gap = now - this.lastNovaTap;
     if (this.lastNovaTap && gap > 540) this.novaCharge *= .55;
     this.lastNovaTap = now;
     this.novaCharge = Math.min(36, this.novaCharge + 1);
     if (this.novaCharge < 36) return;
-    this.novaEnd = now + 5000;
+    this.novaDuration = duration;
+    this.novaEnd = now + duration;
     this.field.classList.add('supernova');
     this.audio.supernova();
     this.feedback.start(now);

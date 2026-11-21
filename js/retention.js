@@ -25,6 +25,7 @@ export class Retention {
       audio.celebrate(3);
       vibrate([15, 30, 25]);
       this.streak.trophies(this.trophies.claimedCount(), 24);
+      game.fragments('trophy', Math.max(1, Math.round(xp / 2)));
       grant(xp, charge, performance.now());
       save();
     }, () => {
@@ -37,7 +38,9 @@ export class Retention {
       burst('RELÂMPAGO!', 96);
       audio.celebrate(3);
       vibrate([18, 28, 18, 28, 32]);
-      grant(65, 50, now);
+      const tuning = game.tuning();
+      game.fragments('lightning');
+      grant(Math.round(65 * tuning.crystalXP), 50 + tuning.crystalCharge, now);
       save();
     }, () => audio.tick());
     this.crystal = new Crystal(state.retention, cracks => {
@@ -53,7 +56,11 @@ export class Retention {
       if (kind === 'bonus' || kind === 'milestone') game.cosmetic();
       this.sync();
       audio.celebrate(2);
-      grant(kind === 'daily' ? 10 : kind === 'level' ? 18 : 48, kind === 'daily' ? 35 : 10, now);
+      const tuning = game.tuning();
+      const xp = kind === 'daily' ? 10 : kind === 'level' ? 18 : 48;
+      const charge = kind === 'daily' ? 35 : 10;
+      game.fragments('crystal');
+      grant(Math.round(xp * tuning.crystalXP), charge + tuning.crystalCharge, now);
       save();
     });
     this.streak = new Streak(state.retention.streak, (days, now) => {

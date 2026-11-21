@@ -231,3 +231,42 @@ dialog select { width: 100%; margin-top: 5px; }
   #streak[data-tier="4"] svg { animation: none !important; }
   .field.charging .core { transform: none; }
 }
+
+/* Loja e superfícies das skins */
+#shop { position: relative; display: grid; place-items: center; min-width: 36px; min-height: 34px; padding: 4px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); color: var(--accent); }
+#shop > span { position: absolute; top: -4px; right: -4px; width: 9px; height: 9px; border-radius: 50%; background: #ffe0a0; box-shadow: 0 0 8px #ffc56e; }
+#shop-panel { width: min(calc(100% - 24px), 530px); max-height: 88dvh; padding: 15px; background: #181122f5; overflow: hidden; }
+#shop-panel[open] { display: flex; flex-direction: column; }
+.shop-wallet { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 8px 0; color: var(--soft); }
+.shop-wallet strong { color: #ffe5ad; font-size: 1.3rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.shop-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.shop-tabs button[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, var(--panel)); }
+#shop-status { color: var(--accent); min-height: 1.3em; margin: 6px 0; font-size: .76rem; }
+#shop-list { display: grid; align-content: start; gap: 6px; min-height: 0; overflow: auto; overscroll-behavior: contain; touch-action: pan-y; padding: 3px; }
+.shop-card { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 7px; border: 1px solid var(--line); border-radius: 9px; }
+.shop-card > div { flex: 1; min-width: 0; }
+.shop-card small { display: block; color: var(--soft); margin-top: 2px; }
+.shop-card button { flex: none; min-height: 38px; padding: 4px 7px; font-size: .76rem; }
+.shop-card button:enabled { color: #ffe4ae; border-color: #ba8e54; }
+.shop-card button:disabled { opacity: .52; cursor: default; }
+#shop-confetti { position: absolute; z-index: 1; top: 40%; left: 50%; pointer-events: none; opacity: 0; color: #ffe5aa; text-shadow: 12px -20px #9affea, -17px 18px #ed95ff, 18px 20px #ff99c5, -12px -15px #82bbff; }
+.skin-preview { display: block; width: 33px; aspect-ratio: 1; flex: none; border: 1px solid var(--accent); border-radius: 50%; background: var(--skin-surface, radial-gradient(circle at 32% 28%, #fff, var(--accent) 26%, var(--deep) 70%, #170e26)); }
+[data-skin="solar"] { --skin-surface: radial-gradient(circle, #fff5ce 0 12%, var(--accent) 32%, var(--deep) 49%, #ffc978 51% 56%, #201122 61% 68%, var(--accent) 71%, #150c1e 74%); --skin-field: repeating-radial-gradient(ellipse at center, #ffcd7d20 0 1px, transparent 1px 30px); }
+[data-skin="vortex"] { --skin-surface: repeating-conic-gradient(from 35deg, var(--accent), var(--deep) 22deg, #21112c 31deg, var(--deep) 44deg, var(--accent) 60deg); --skin-field: repeating-radial-gradient(ellipse at 45% 48%, #e4aaff16 0 2px, transparent 2px 24px); }
+[data-skin="grid"] { --skin-surface: repeating-linear-gradient(0deg, transparent 0 12%, #f6deff6e 13% 14%), repeating-linear-gradient(90deg, transparent 0 12%, #f6deff6e 13% 14%), radial-gradient(circle at 35% 30%, var(--accent), var(--deep) 65%, #170c24); --skin-field: repeating-linear-gradient(0deg, transparent 0 23px, #d7acff16 23px 24px), repeating-linear-gradient(90deg, transparent 0 23px, #d7acff16 23px 24px); }
+[data-skin="crystal"] { --skin-surface: conic-gradient(from 30deg, #fff2ff, var(--accent), var(--deep), #17152f, var(--accent), #d7edff, var(--deep), #fff2ff); --skin-field: repeating-conic-gradient(from 25deg, #dab4ff16 0 3deg, transparent 3deg 24deg); }
+[data-skin="abyss"] { --skin-surface: radial-gradient(circle at 33% 30%, #fff 0 1%, transparent 2%), radial-gradient(circle at 67% 37%, #fff 0 1%, transparent 2%), radial-gradient(circle at 44% 69%, #fff 0 1%, transparent 2%), radial-gradient(ellipse at 60% 65%, var(--deep), #161129 53%, #090817 65%, var(--accent) 90%); --skin-field: radial-gradient(#e5c9ff70 1px, transparent 1.5px) center / 29px 31px; }
+[data-skin="plasma"] { --skin-surface: repeating-radial-gradient(ellipse at 28% 25%, #ffebfa 0 4%, var(--accent) 7% 13%, var(--deep) 19% 29%, #28183b 34% 37%); --skin-field: repeating-linear-gradient(145deg, #cfa4ff1e 0 1px, transparent 1px 31px); }
+.field[data-skin]:not([data-skin="classic"]) .core, .field[data-skin]:not([data-skin="classic"]) .bubble { background: var(--skin-surface); }
+.field[data-skin]:not([data-skin="classic"])::before { content: ''; position: absolute; inset: 0; z-index: -1; background: var(--skin-field); opacity: .68; pointer-events: none; mask-image: radial-gradient(ellipse, #000 24%, transparent 86%); }
+.field[data-skin]:not([data-skin="classic"]) .key { background: linear-gradient(#17102440, #17102488), var(--skin-surface); }
+.field[data-skin]:not([data-skin="classic"]) .key.active { background: var(--skin-surface); }
+.field[data-skin="vortex"] .core span { transform: rotate(-29deg) scaleY(.67); }
+.field[data-skin="grid"] .core, .skin-preview[data-skin="grid"] { border-radius: 23%; }
+.field[data-skin="crystal"] .core, .skin-preview[data-skin="crystal"] { clip-path: polygon(50% 0, 90% 19%, 100% 61%, 73% 95%, 27% 95%, 0 61%, 10% 19%); }
+@media (max-width: 360px) {
+  .hud { padding-inline: 10px; }
+  .hud-tools { gap: 5px; }
+  .shop-card { gap: 5px; }
+  .skin-preview { width: 25px; }
+}

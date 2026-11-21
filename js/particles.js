@@ -23,7 +23,8 @@ export class Effects {
   }
 
   emit(x, y, color, amount, label, rainbow = false, fontSize = 18) {
-    for (let i = 0; i < amount; i++) {
+    const count = Math.min(160, Math.round(amount * (this.density ?? 1)));
+    for (let i = 0; i < count; i++) {
       const dot = this.dots[this.cursor++ % LIMIT];
       const angle = Math.random() * Math.PI * 2;
       const speed = 45 + Math.random() * 205;
@@ -33,10 +34,11 @@ export class Effects {
       dot.vy = Math.sin(angle) * speed;
       dot.color = rainbow ? 'hsl(' + Math.round(Math.random() * 360) + ' 95% 72%)' : color;
       dot.size = 1 + Math.random() * 3;
+      dot.shape = this.shape ?? 0;
       dot.life = dot.duration = .24 + Math.random() * .54;
     }
     if (this.rings.length >= 28) this.rings.shift();
-    this.rings.push({ x, y, color, age: 0 });
+    this.rings.push({ x, y, color, age: 0, reach: this.wave ?? 1 });
     if (label) {
       if (this.labels.length >= 18) this.labels.shift();
       this.labels.push({ x: Math.max(35, Math.min(this.width - 35, x)), y: Math.max(35, y), color, label, fontSize, age: 0 });
@@ -61,7 +63,19 @@ export class Effects {
       }
       ctx.globalAlpha = Math.max(0, dot.life / dot.duration) ** 1.5;
       ctx.fillStyle = dot.color;
-      ctx.fillRect(dot.x, dot.y, dot.size, dot.size);
+      if (dot.shape === 0 || dot.shape === 3) {
+        ctx.fillRect(dot.x, dot.y, dot.size * (dot.shape === 3 ? 2.5 : 1), dot.size);
+      } else {
+        ctx.beginPath();
+        if (dot.shape === 1) ctx.arc(dot.x, dot.y, dot.size * .62, 0, Math.PI * 2);
+        else {
+          ctx.moveTo(dot.x, dot.y - dot.size);
+          ctx.lineTo(dot.x + dot.size, dot.y + dot.size * .75);
+          ctx.lineTo(dot.x - dot.size, dot.y + dot.size * .75);
+          ctx.closePath();
+        }
+        ctx.fill();
+      }
     }
     this.rings = this.rings.filter(ring => (ring.age += dt) < .48);
     for (const ring of this.rings) {
@@ -69,7 +83,7 @@ export class Effects {
       ctx.strokeStyle = ring.color;
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(ring.x, ring.y, 10 + ring.age * 240, 0, Math.PI * 2);
+      ctx.arc(ring.x, ring.y, 10 + ring.age * 240 * ring.reach, 0, Math.PI * 2);
       ctx.stroke();
     }
     this.labels = this.labels.filter(label => (label.age += dt) < .82);

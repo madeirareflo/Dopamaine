@@ -1,9 +1,9 @@
-const CACHE = 'prisma-shell-v3';
+const CACHE = 'prisma-shell-v4';
 const SHELL = [
   './', './index.html', './styles.css', './js/app.js', './js/audio.js',
   './js/retention.js', './js/achievements.js', './js/challenges.js', './js/crystal.js',
   './js/streak.js', './js/horizon.js', './js/impact.js',
-  './js/particles.js', './manifest.webmanifest', './icons/icon.svg',
+  './js/shop.js', './js/particles.js', './manifest.webmanifest', './icons/icon.svg',
   './icons/icon-192.png', './icons/icon-512.png',
 ];
 const urls = new Set(SHELL.map(path => new URL(path, self.registration.scope).href));
