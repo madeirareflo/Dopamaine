@@ -4,6 +4,8 @@ import { Retention, retentionSave } from './retention.js';
 
 import { Impact } from './impact.js';
 import { Shop, shopSave } from './shop.js';
+import { WorldMap, mapSave } from './world-map.js';
+import { Frenzy } from './frenzy.js';
 
 const $ = id => document.getElementById(id);
 const root = document.documentElement;
@@ -33,7 +35,7 @@ const modes = {
 const randomInterval = () => 20 + Math.floor(Math.random() * 26);
 const fresh = () => ({
   taps: 0, xp: 0, level: 1, best: 0, theme: 0, sound: 0, muted: false,
-  themes: [0], sounds: [0], untilBonus: randomInterval(), retention: retentionSave(), shop: shopSave(),
+  themes: [0], sounds: [0], untilBonus: randomInterval(), retention: retentionSave(), shop: shopSave(), worldMap: mapSave(),
 });
 
 function load() {
@@ -54,6 +56,12 @@ function load() {
     base.muted = saved.muted === true;
     base.retention = retentionSave(saved.retention);
     base.shop = shopSave(saved.shop);
+    base.worldMap = mapSave(saved.worldMap);
+    if (!saved.worldMap) {
+      base.worldMap.metrics.critical = base.retention.progress.critical;
+      base.worldMap.metrics.pulseFever = base.retention.progress.fever;
+      base.worldMap.metrics.pulseNova = base.retention.progress.nova;
+    }
     return base;
   } catch {
     return fresh();
@@ -153,6 +161,7 @@ function charge(amount, now) {
   audio.reward(true);
   vibrate([14, 28, 14, 28, 25], now);
   shop.earn('fever');
+  if (mode === 'pulse') worldMap.record('pulseFever');
   retention.fever(mode, now);
   return true;
 }
@@ -162,6 +171,7 @@ function grant(xp, amount, now) {
   chargeHold = Math.max(chargeHold, now + 12000);
   if (now < feverEnd || now < impactFx.novaEnd) energy = Math.min(100, energy + amount);
   else charge(amount, now);
+  worldMap.refresh();
   meter();
 }
 
@@ -178,18 +188,23 @@ function action(x, y, key = -1, slide = 0) {
   state.best = Math.max(state.best, combo);
   const multiplier = Math.min(10, 1 + Math.floor(combo / 4));
   const tuning = shop.effects;
-  const started = charge((4 + multiplier * .75) * tuning.feverRate, now);
+  const flow = frenzy.tap(mode, now);
+  if (flow.rhythm) worldMap.record('rhythm');
+  if (flow.alternate) worldMap.record('alternation');
+  const started = charge((4 + multiplier * .75 + flow.charge) * tuning.feverRate, now);
   const fever = now < feverEnd;
   if (fever) impactFx.novaTap(now, tuning.novaDuration);
   const nova = now < impactFx.novaEnd;
   const critical = Math.random() < (nova ? .25 : fever ? .15 : .07) + tuning.critical;
   shop.earn(critical ? 'critical' : 'tap');
-  const label = started ? 'FEVER!' : combo === 25 ? 'INSANE!' : combo === 8 ? 'NICE!' : combo === 16 ? '×5' : '+1';
+  if (flow.active) shop.earn('frenzy', critical ? 4 : 1);
+  if (critical) worldMap.record('critical');
+  const label = started ? 'FEVER!' : combo === 25 ? 'INSANE!' : combo === 8 ? 'NICE!' : combo === 16 ? '×5' : flow.alternate ? '3 MODOS!' : flow.rhythm ? 'RITMO!' : '+1';
   const count = mode === 'keys' ? 7 + tuning.switchSparks : 13;
   const accent = themes[state.theme][1];
   const renderHit = () => effects.emit(x, y, critical ? '#ffe29c' : accent,
-    reducedMotion.matches ? 4 : count * (nova ? 4 : fever ? 3 : 1) + (critical ? 25 : 0),
-    critical ? 'PRISMA ×3!' : label, nova || fever || critical, critical ? 26 : 18);
+    reducedMotion.matches ? 4 : count * (nova ? 4 : fever ? 3 : 1) + flow.particles + (critical ? 25 : 0),
+    critical ? 'PRISMA ×3!' : label, nova || fever || flow.active || critical, critical ? 26 : 18);
   if (critical) impactFx.hit(now, () => {
     renderHit();
     impact = Math.max(impact, 4.5);
@@ -212,6 +227,7 @@ function action(x, y, key = -1, slide = 0) {
   gainXP(xp + switchBonus, now);
   if (bonus.hidden && --state.untilBonus <= 0) bonus.hidden = false;
   retention.tap(mode, combo, critical, state.muted, pointers.size, key, slide, now);
+  worldMap.refresh();
   meter();
   if (!saveTimer) saveTimer = setTimeout(save, 250);
 }
@@ -278,6 +294,7 @@ function pop(bubble, chain = null, drag = null) {
   if (chain) {
     chain.size++;
     retention.chain(chain.size, now);
+    worldMap.refresh();
     effects.emit(bubble.x, bubble.y, themes[state.theme][1], reducedMotion.matches ? 4 : (now < feverEnd ? 30 : 10));
     audio.play(state.sound, Math.max(1, combo), now < feverEnd, 'bubbles');
   } else {
@@ -439,6 +456,8 @@ $('reset-form').addEventListener('submit', event => {
   state = { ...fresh(), muted: state.muted };
   impactFx.reset();
   shop.use(state.shop);
+  frenzy.reset();
+  worldMap.use(state.worldMap);
   clearTimeout(noticeTimer);
   $('streak-notice').hidden = true;
   retention.reset(state);
@@ -497,6 +516,7 @@ function frame(now) {
   const nova = now < impactFx.novaEnd;
   const cooled = Math.max(0, combo - Math.floor(Math.max(0, now - last - 470) / 140));
   retention.frame(now);
+  frenzy.frame(now);
   if (!fever && !nova && now >= chargeHold && now - last > 390) energy = Math.max(0, energy - dt * 13);
   const multiplier = '×' + Math.min(10, 1 + Math.floor(cooled / 4));
   if ($('combo').textContent !== multiplier) $('combo').textContent = multiplier;
@@ -563,6 +583,8 @@ const shop = new Shop(state.shop, {
 const impactFx = new Impact(field, audio, effects, () => reducedMotion.matches, {
   start(now) {
     shop.earn('nova');
+    if (mode === 'pulse') worldMap.record('pulseNova');
+    if (mode === 'keys') worldMap.record('switchNova');
     if (mode === 'pulse') retention.trophies.update({ nova: 1 });
     burst('SUPERNOVA!', 82);
     vibrate([16, 30, 28], now);
@@ -584,6 +606,7 @@ const impactFx = new Impact(field, audio, effects, () => reducedMotion.matches, 
     velocity = 10 + ratio * 12;
     impact = Math.max(impact, 2 + ratio * 5);
     charge(6 + ratio * 17, now);
+    worldMap.refresh();
     audio.critical();
     vibrate([12, 25, 12 + Math.round(ratio * 14)], now);
     save();
@@ -607,6 +630,30 @@ const retention = new Retention(state, {
     }
   },
 });
+const worldMap = new WorldMap(state.worldMap, key => {
+  const { retention } = state;
+  if (key === 'bubbles' || key === 'keys') return retention.tapsByMode[key];
+  if (['taps', 'best', 'level'].includes(key)) return state[key];
+  if (key === 'crystals' || key === 'challenges') return retention[key];
+  if (key === 'bubbleChain') return retention.progress.chain;
+  if (key === 'pulseCombo') return retention.progress.pulse50;
+  return retention.progress[key] ?? 0;
+}, {
+  reward(fragments, gained, stars) {
+    shop.earn('map', fragments);
+    burst(gained ? '+' + fragments + ' ◈' : '★ MAESTRIA', gained ? 36 : 24);
+    audio.reward(gained > 1 || stars > 1);
+    vibrate([12, 25, 16]);
+  },
+  save,
+});
+const frenzy = new Frenzy($('frenzy-status'), field, now => {
+  worldMap.record('frenzy');
+  burst('SOBRECARGA!', 70);
+  audio.supernova();
+  vibrate([14, 24, 21], now);
+});
+worldMap.refresh();
 bonus.hidden = state.untilBonus > 0;
 applyStyle();
 meter();

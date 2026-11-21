@@ -21,6 +21,15 @@ export const skins = [
   { id: 'abyss', name: 'Espectro Abissal', description: 'Camadas profundas com pontos de luz.', cost: 158, shape: 1 },
   { id: 'plasma', name: 'Plasma Espectral', description: 'Interferência de luz e descargas em forma de traço.', cost: 192, shape: 3 },
 ];
+const upgradeIcons = {
+  "critical": "M13 2 5 13h6l-1 9 9-12h-6l1-8Z",
+  "yield": "m12 2 8 6-3 11h-10L4 8l8-6Zm-8 6h16m-13 11 5-11 5 11",
+  "fever": "M13 2c2 6-3 7-3 11-2-1-2-3-2-4-3 3-4 5-4 7a8 8 0 0 0 16 0c0-5-4-10-7-14Zm-1 19c-4 0-4-4 0-7 0 2 2 3 2 5 0 1-1 2-2 2Z",
+  "particles": "M12 2v5m0 10v5M2 12h5m10 0h5M5 5l3 3m8 8 3 3M5 19l3-3m8-8 3-3m-7 2 2 2-2 2-2-2 2-2Z",
+  "chain": "M8 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm8 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-12-1h2m12-15h2m-1-1v2",
+  "switch": "M5 7h14l2 5v6H3v-6l2-5Zm-2 5h18m-12 3h6m-3-13v2",
+  "crystal": "m12 2 7 4v9l-7 7-7-7V6l7-4Zm0 0 3 7-3 13L9 9l3-7ZM5 6l4 3h6l4-3"
+};
 const rewards = { tap: 1, critical: 4, crystal: 12, lightning: 24, fever: 8, nova: 16 };
 const number = (value, max) => Number.isSafeInteger(value) && value >= 0 ? Math.min(value, max) : 0;
 
@@ -194,6 +203,12 @@ export class Shop {
     title.textContent = item.name;
     const detail = document.createElement('small');
     if (isUpgrade) {
+      const icon = document.createElement('span');
+      icon.className = 'upgrade-icon';
+      icon.dataset.upgrade = item.id;
+      icon.setAttribute('aria-hidden', 'true');
+      icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round"><path d="' + upgradeIcons[item.id] + '"/></svg>';
+      row.append(icon);
       const current = level ? item.effect(level) : 'Bônus inicial';
       detail.textContent = 'Nv. ' + level + '/' + MAX_LEVEL + ' · ' + current;
       if (!max) {
