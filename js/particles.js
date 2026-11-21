@@ -14,7 +14,7 @@ export class Effects {
 
   resize() {
     const { clientWidth: width, clientHeight: height } = this.canvas;
-    const ratio = Math.min(devicePixelRatio, 1.75);
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
     this.canvas.width = Math.round(width * ratio);
     this.canvas.height = Math.round(height * ratio);
     this.ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
@@ -22,7 +22,7 @@ export class Effects {
     this.height = height;
   }
 
-  emit(x, y, color, amount, label, rainbow = false) {
+  emit(x, y, color, amount, label, rainbow = false, fontSize = 18) {
     for (let i = 0; i < amount; i++) {
       const dot = this.dots[this.cursor++ % LIMIT];
       const angle = Math.random() * Math.PI * 2;
@@ -39,7 +39,7 @@ export class Effects {
     this.rings.push({ x, y, color, age: 0 });
     if (label) {
       if (this.labels.length >= 18) this.labels.shift();
-      this.labels.push({ x: Math.max(35, Math.min(this.width - 35, x)), y: Math.max(35, y), color, label, age: 0 });
+      this.labels.push({ x: Math.max(35, Math.min(this.width - 35, x)), y: Math.max(35, y), color, label, fontSize, age: 0 });
     }
   }
 
@@ -68,11 +68,11 @@ export class Effects {
       ctx.stroke();
     }
     this.labels = this.labels.filter(label => (label.age += dt) < .82);
-    ctx.font = '800 18px system-ui';
     ctx.textAlign = 'center';
     for (const label of this.labels) {
       ctx.globalAlpha = 1 - (label.age / .82) ** 2;
       ctx.fillStyle = label.color;
+      ctx.font = '800 ' + label.fontSize + 'px system-ui';
       ctx.fillText(label.label, label.x, label.y - 9 - label.age * 54);
     }
     ctx.globalAlpha = 1;

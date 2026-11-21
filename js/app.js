@@ -1,5 +1,6 @@
 import { Synth } from './audio.js';
 import { Effects } from './particles.js';
+import { Retention, retentionSave } from './retention.js';
 
 const $ = id => document.getElementById(id);
 const root = document.documentElement;
@@ -29,13 +30,27 @@ const modes = {
 const randomInterval = () => 20 + Math.floor(Math.random() * 26);
 const fresh = () => ({
   taps: 0, xp: 0, level: 1, best: 0, theme: 0, sound: 0, muted: false,
-  themes: [0], sounds: [0], untilBonus: randomInterval(),
+  themes: [0], sounds: [0], untilBonus: randomInterval(), retention: retentionSave(),
 });
 
 function load() {
   try {
     const saved = JSON.parse(localStorage.getItem(storageKey));
-    return { ...fresh(), ...saved };
+    const base = fresh();
+    if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return base;
+    for (const key of ['taps', 'xp', 'level', 'best', 'untilBonus']) {
+      if (Number.isSafeInteger(saved[key]) && saved[key] >= 0) base[key] = saved[key];
+    }
+    base.level = Math.max(1, base.level);
+    for (const [key, selected, catalog] of [['themes', 'theme', themes], ['sounds', 'sound', sounds]]) {
+      if (Array.isArray(saved[key])) {
+        base[key] = [...new Set([0, ...saved[key].filter(index => Number.isInteger(index) && index >= 0 && index < catalog.length)])];
+      }
+      if (base[key].includes(saved[selected])) base[selected] = saved[selected];
+    }
+    base.muted = saved.muted === true;
+    base.retention = retentionSave(saved.retention);
+    return base;
   } catch {
     return fresh();
   }
@@ -46,6 +61,7 @@ let mode = 'pulse';
 let combo = 0;
 let last = -Infinity;
 let energy = 0;
+let chargeHold = 0;
 let feverEnd = 0;
 let messageUntil = 0;
 let spring = 0;
@@ -111,6 +127,7 @@ function gainXP(amount, now) {
   while (state.xp >= levelCost()) {
     state.xp -= levelCost();
     state.level++;
+    retention.crystal.add('level');
     themes.forEach((theme, index) => {
       if (theme[3] === state.level && !state.themes.includes(index)) state.themes.push(index);
     });
@@ -122,66 +139,84 @@ function gainXP(amount, now) {
   }
 }
 
-function action(x, y) {
+function charge(amount, now) {
+  if (now < feverEnd) return false;
+  energy = Math.min(100, energy + amount);
+  if (energy < 100) return false;
+  feverEnd = now + 8000;
+  energy = 0;
+  message('FEVER MODE!', now, 2200);
+  audio.reward(true);
+  vibrate([14, 28, 14, 28, 25], now);
+  retention.fever(mode, now);
+  return true;
+}
+
+function grant(xp, amount, now) {
+  gainXP(xp, now);
+  chargeHold = Math.max(chargeHold, now + 12000);
+  if (now < feverEnd) energy = Math.min(100, energy + amount);
+  else charge(amount, now);
+  meter();
+}
+
+function burst(label, count, target) {
+  const [x, y] = target ? localPoint(target) : [effects.width / 2, effects.height * .55];
+  effects.emit(x, y, '#ffdb88', reducedMotion.matches ? 10 : count, label, true, 24);
+}
+
+function action(x, y, key = -1, slide = 0) {
   const now = performance.now();
   combo = Math.max(0, combo - Math.floor(Math.max(0, now - last - 470) / 140)) + 1;
   last = now;
   state.taps++;
   state.best = Math.max(state.best, combo);
   const multiplier = Math.min(10, 1 + Math.floor(combo / 4));
-  let fever = now < feverEnd;
-  let started = false;
-  if (!fever) {
-    energy = Math.min(100, energy + 4 + multiplier * .75);
-    if (energy === 100) {
-      feverEnd = now + 8000;
-      fever = started = true;
-      energy = 0;
-      message('FEVER MODE!', now, 2200);
-    }
-  }
+  const started = charge(4 + multiplier * .75, now);
+  const fever = now < feverEnd;
+  const critical = Math.random() < (fever ? .15 : .07);
   const label = started ? 'FEVER!' : combo === 25 ? 'INSANE!' : combo === 8 ? 'NICE!' : combo === 16 ? '×5' : '+1';
   const count = mode === 'keys' ? 7 : 13;
-  effects.emit(x, y, themes[state.theme][1], reducedMotion.matches ? 4 : count * (fever ? 3 : 1), label, fever);
+  effects.emit(x, y, critical ? '#ffe29c' : themes[state.theme][1],
+    reducedMotion.matches ? 4 : count * (fever ? 3 : 1) + (critical ? 25 : 0),
+    critical ? 'PRISMA! ×3' : label, fever || critical, critical ? 26 : 18);
   audio.play(state.sound, combo, fever, mode);
-  if (started) {
-    audio.reward(true);
-    vibrate([14, 28, 14, 28, 25], now);
-  } else if (combo === 8 || combo === 16 || combo === 25) {
+  if (critical) {
+    audio.critical();
+    vibrate([12, 28, 18], now);
+    if (!reducedMotion.matches) field.animate([{ filter: 'brightness(1.24)' }, { filter: 'brightness(1)' }], 160);
+  } else if (!started && (combo === 8 || combo === 16 || combo === 25)) {
     audio.reward();
     vibrate([12, 32, 16], now);
-  } else {
-    vibrate(10, now);
-  }
+  } else if (!started) vibrate(10, now);
   impact = Math.min(4, 1 + multiplier * .3);
-  gainXP(multiplier * (fever ? 2 : 1), now);
+  gainXP(multiplier * (fever ? 2 : 1) * (critical ? 3 : 1), now);
   if (bonus.hidden && --state.untilBonus <= 0) bonus.hidden = false;
+  retention.tap(mode, combo, critical, state.muted, pointers.size, key, slide, now);
   meter();
-  if (!saveTimer) saveTimer = setTimeout(() => {
-    saveTimer = undefined;
-    save();
-  }, 250);
+  if (!saveTimer) saveTimer = setTimeout(save, 250);
 }
 
 function collect() {
   if (bonus.hidden) return;
-  const now = performance.now();
-  const [x, y] = localPoint(bonus);
   bonus.hidden = true;
   state.untilBonus = randomInterval();
+  retention.crystal.add('bonus');
+  burst('+ Cristal', 20, $('crystal'));
+  audio.crack(1);
+  save();
+}
+
+function unlockCosmetic() {
   const locked = [
     ...themes.map((item, index) => [item[0], index, state.themes]),
     ...sounds.map((item, index) => [item[0], index, state.sounds]),
   ].filter(([, index, owned]) => !owned.includes(index));
   const reward = locked[Math.floor(Math.random() * locked.length)];
-  if (reward) reward[2].push(reward[1]);
-  gainXP(48, now);
-  message(reward ? 'Desbloqueado · ' + reward[0] : 'Jackpot · +48 XP', now, 2600);
-  effects.emit(x, y, '#ffdb78', reducedMotion.matches ? 12 : 76, 'JACKPOT!', true);
-  audio.reward(true);
-  vibrate([12, 35, 18], now);
-  meter();
-  save();
+  if (reward) {
+    reward[2].push(reward[1]);
+    message('Desbloqueado · ' + reward[0], performance.now(), 2600);
+  }
 }
 
 const bubbles = Array.from({ length: 16 }, (_, index) => {
@@ -215,33 +250,44 @@ function drawBubbles(now) {
   }
 }
 
-function pop(bubble, chain = false) {
+function pop(bubble, chain = null, drag = null) {
   if (bubble.element.hidden) return;
+  const now = performance.now();
   bubble.element.hidden = true;
   bubble.phase = Math.random() * 6.28;
-  bubble.until = performance.now() + 750 + Math.random() * 650;
+  bubble.until = now + 750 + Math.random() * 650;
   if (chain) {
-    effects.emit(bubble.x, bubble.y, themes[state.theme][1], reducedMotion.matches ? 4 : (performance.now() < feverEnd ? 30 : 10));
-    audio.play(state.sound, Math.max(1, combo), performance.now() < feverEnd, 'bubbles');
-    return;
+    chain.size++;
+    retention.chain(chain.size, now);
+    effects.emit(bubble.x, bubble.y, themes[state.theme][1], reducedMotion.matches ? 4 : (now < feverEnd ? 30 : 10));
+    audio.play(state.sound, Math.max(1, combo), now < feverEnd, 'bubbles');
+  } else {
+    if (drag) {
+      if (now - drag.lastPop > 1600) drag.count = 0;
+      drag.lastPop = now;
+      drag.count++;
+    }
+    action(bubble.x, bubble.y, -1, drag?.count ?? 0);
+    if (Math.random() >= .48) return;
+    chain = { size: 1, marked: new Set([bubble]) };
   }
-  action(bubble.x, bubble.y);
-  const nearby = bubbles.filter(other => !other.element.hidden &&
-    Math.hypot(other.x - bubble.x, other.y - bubble.y) < bubble.diameter * 2.2);
-  if (nearby.length && Math.random() < .48) {
-    nearby.slice(0, 3).forEach((other, index) => {
-      const timer = setTimeout(() => {
-        pendingChain.delete(timer);
-        if (mode === 'bubbles') pop(other, true);
-      }, 65 * (index + 1));
-      pendingChain.add(timer);
-    });
+  const adjacent = bubbles.filter(other => !other.element.hidden && !chain.marked.has(other) &&
+    Math.hypot(other.x - bubble.x, other.y - bubble.y) < bubble.diameter * 2.45);
+  for (const [index, other] of adjacent.slice(0, 2).entries()) {
+    if (chain.marked.size >= 8) break;
+    chain.marked.add(other);
+    const timer = setTimeout(() => {
+      pendingChain.delete(timer);
+      if (mode === 'bubbles') pop(other, chain);
+    }, 65 * (index + 1));
+    pendingChain.add(timer);
   }
 }
 
-for (const symbol of ['◆', '●', '✦', '■', '▲', '◉', '✧', '◇', '✚', '▰', '◒', '✳']) {
+for (const symbol of ['◆', '●', '✦', '■', '▲', '◉', '✧', '◇', '✚', '▰', '◒', '✳', '◈', '▣', '✹', '◍']) {
   const button = document.createElement('button');
   button.className = 'key';
+  button.dataset.index = $('keys').children.length;
   button.type = 'button';
   button.textContent = symbol;
   button.setAttribute('aria-label', 'Tecla ' + ($('keys').children.length + 1));
@@ -249,7 +295,10 @@ for (const symbol of ['◆', '●', '✦', '■', '▲', '◉', '✧', '◇', '�
 }
 
 function strike(target) {
-  if (target === bonus) {
+  if (target === $('crystal')) {
+    retention.crystal.hit(performance.now());
+    save();
+  } else if (target === bonus) {
     collect();
   } else if (target === core) {
     velocity = 9;
@@ -262,7 +311,7 @@ function strike(target) {
     clearTimeout(keyTimers.get(target));
     target.classList.add('active');
     keyTimers.set(target, setTimeout(() => target.classList.remove('active'), 145));
-    action(...localPoint(target));
+    action(...localPoint(target), Number(target.dataset.index));
   }
 }
 
@@ -270,23 +319,26 @@ document.addEventListener('pointerdown', () => audio.unlock(), { capture: true }
 document.addEventListener('keydown', () => audio.unlock(), { capture: true });
 field.addEventListener('pointerdown', event => {
   if (event.button !== 0) return;
-  pointers.set(event.pointerId, [event.clientX, event.clientY]);
+  pointers.set(event.pointerId, { x: event.clientX, y: event.clientY, count: 0, lastPop: -Infinity });
   if (mode === 'bubbles') field.setPointerCapture(event.pointerId);
   strike(event.target.closest('button'));
 });
 field.addEventListener('pointermove', event => {
   const previous = pointers.get(event.pointerId);
   if (!previous || mode !== 'bubbles') return;
-  const [x, y] = previous;
+  const { x, y } = previous;
   const dx = event.clientX - x;
   const dy = event.clientY - y;
-  const steps = Math.min(30, Math.max(1, Math.ceil(Math.hypot(dx, dy) / 10)));
+  const distance = Math.hypot(dx, dy);
+  if (!distance) return;
+  const steps = Math.min(30, Math.max(1, Math.ceil(distance / 10)));
   for (let i = 1; i <= steps; i++) {
     const target = document.elementFromPoint(x + dx * i / steps, y + dy * i / steps);
     const bubble = bubbleByElement.get(target);
-    if (bubble) pop(bubble);
+    if (bubble) pop(bubble, null, previous);
   }
-  pointers.set(event.pointerId, [event.clientX, event.clientY]);
+  previous.x = event.clientX;
+  previous.y = event.clientY;
 });
 for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
   window.addEventListener(type, event => pointers.delete(event.pointerId));
@@ -351,6 +403,8 @@ $('reset-form').addEventListener('submit', event => {
     return;
   }
   state = { ...fresh(), muted: state.muted };
+  retention.reset(state);
+  chargeHold = 0;
   combo = energy = feverEnd = messageUntil = 0;
   last = -Infinity;
   for (const timer of pendingChain) clearTimeout(timer);
@@ -388,6 +442,7 @@ install.addEventListener('click', async () => {
 window.addEventListener('pagehide', save);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) save();
+  else if (retention.crystal.daily()) save();
 });
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js', { scope: './', updateViaCache: 'none' })
@@ -396,11 +451,13 @@ if ('serviceWorker' in navigator) {
 
 let frameTime = performance.now();
 function frame(now) {
-  const dt = Math.min(.033, (now - frameTime) / 1000);
+  const elapsed = Math.min(100, now - frameTime);
+  const dt = Math.min(.033, elapsed / 1000);
   frameTime = now;
   const fever = now < feverEnd;
   const cooled = Math.max(0, combo - Math.floor(Math.max(0, now - last - 470) / 140));
-  if (now - last > 390) energy = Math.max(0, energy - dt * 13);
+  retention.frame(now, elapsed, mode, document.hidden || panel.open || $('trophy-panel').open);
+  if (!fever && now >= chargeHold && now - last > 390) energy = Math.max(0, energy - dt * 13);
   const multiplier = '×' + Math.min(10, 1 + Math.floor(cooled / 4));
   if ($('combo').textContent !== multiplier) $('combo').textContent = multiplier;
   const feverLabel = fever ? 'FEVER · ' + Math.ceil((feverEnd - now) / 1000) + ' s' : 'FEVER';
@@ -428,6 +485,9 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
+const retention = new Retention(state, {
+  audio, vibrate, burst, cosmetic: unlockCosmetic, grant, save, reduced: () => reducedMotion.matches,
+});
 bonus.hidden = state.untilBonus > 0;
 applyStyle();
 meter();

@@ -21,16 +21,26 @@
   <div class="tools"><button type="button" id="install" hidden>Instalar App</button><button type="button" id="mute" aria-label="Mudo" aria-pressed="false" title="Mudo">♪</button><button type="button" id="settings" aria-label="Personalizar" title="Personalizar">⚙</button></div>
 </header>
 <section class="stage" aria-label="Área de jogo">
-  <div class="hud"><span id="mode-name">PULSO</span><div class="combo"><small>COMBO</small><strong id="combo">×1</strong></div></div>
+  <div class="hud"><span id="mode-name">PULSO</span><div class="hud-tools"><span id="streak" hidden></span><button type="button" id="trophies" aria-label="Troféus"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M7 3h10v5c0 4-2 6-5 6S7 12 7 8V3Zm0 2H3v2c0 3 2 4 5 4m9-6h4v2c0 3-2 4-5 4m-4 3v5m-4 2h8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span id="trophy-badge" hidden></span></button></div><div class="combo"><small>COMBO</small><strong id="combo">×1</strong></div></div>
   <div id="field" class="field">
     <div class="orbit" aria-hidden="true"></div>
     <button type="button" id="core" class="core" aria-label="Pulsar"><span></span></button>
     <div id="bubbles" class="bubbles" hidden></div>
     <div id="keys" class="keys" hidden></div>
     <button type="button" id="bonus" class="bonus" aria-label="Coletar orbe dourado" hidden>✦</button>
+    <div id="lightning" hidden><span></span><progress max="1" aria-label="Tempo do desafio"></progress></div>
+    <button type="button" id="crystal" aria-label="Cristal" hidden>
+      <svg viewBox="0 0 64 62" width="51" height="49" aria-hidden="true">
+        <path d="M32 3 57 19 50 44 32 59 13 44 7 19Z" fill="#552290" stroke="#f1cdff" stroke-width="2"/>
+        <path d="M32 3 45 21 32 59 20 21Z" fill="#d994ff"/><path d="M7 19 20 21 32 59 13 44Z" fill="#923eee"/>
+        <path d="M57 19 45 21 32 59 50 44Z" fill="#754aff"/><path d="M7 19 32 3 57 19 45 21 20 21Z" fill="#e8bcff"/>
+        <path class="crack-one" d="m22 12 11 15-6 7 10 9-5 16" fill="none" stroke="white" stroke-width="2"/>
+        <path class="crack-two" d="m33 27 13 5 8-3m-27 5-9 4-6-6" fill="none" stroke="#fff" stroke-width="2"/>
+      </svg><small></small>
+    </button>
     <canvas id="effects" aria-hidden="true"></canvas>
   </div>
-  <div class="stage-bottom"><p id="hint" role="status">Toque no núcleo para criar um pulso</p><div class="fever-row"><span id="fever-label">FEVER</span><progress id="fever" aria-label="Energia Fever" max="100" value="0"></progress></div></div>
+  <div class="stage-bottom"><button type="button" id="almost" aria-label="Quase lá — abrir conquista" hidden><span></span><progress max="1" aria-label="Progresso da próxima conquista"></progress></button><p id="hint" role="status">Toque no núcleo para criar um pulso</p><div class="fever-row"><span id="fever-label">FEVER</span><progress id="fever" aria-label="Energia Fever" max="100" value="0"></progress></div></div>
 </section>
 <nav class="modes" aria-label="Modos de jogo">
   <button type="button" data-mode="pulse" aria-pressed="true"><span aria-hidden="true">◉</span>Pulso</button>
@@ -45,6 +55,21 @@
 <label for="sound">Som</label><select id="sound"></select>
 <p id="record"></p>
 <form id="reset-form"><button type="submit" id="reset">Resetar progresso</button></form>
+</dialog>
+<div id="trophy-toast" role="status" aria-live="polite" hidden></div>
+<dialog id="trophy-panel" aria-labelledby="trophy-title">
+  <form method="dialog"><header><h2 id="trophy-title">Estante de Troféus</h2><button aria-label="Fechar troféus">×</button></header></form>
+  <p id="trophy-summary"></p>
+  <progress id="trophy-progress" max="100" aria-label="Troféus desbloqueados"></progress>
+  <div class="trophy-actions">
+    <button type="button" data-filter="all">Todos</button>
+    <button type="button" data-filter="claim">Resgatar</button>
+    <button type="button" data-filter="earned">Desbloqueados</button>
+    <button type="button" data-claim="all">Resgatar Tudo</button>
+  </div>
+  <p id="claim-feedback" role="status"></p>
+  <div id="claim-confetti" aria-hidden="true">✦ ✧ ✦ ✧ ✦</div>
+  <div id="trophy-list" tabindex="0" aria-label="Lista de troféus"></div>
 </dialog>
 </body>
 </html>

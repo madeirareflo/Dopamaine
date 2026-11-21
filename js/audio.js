@@ -57,6 +57,35 @@ export class Synth {
     if (fever) this.tone(pitch * 2, pitch * 2, 'sine', .045, .21, now + .028);
   }
 
+  celebrate(rarity) {
+    if (!this.context || this.muted) return;
+    const now = this.context.currentTime;
+    const notes = [[0, 7, 12], [0, 4, 7, 12], [0, 4, 7, 12, 16], [0, 4, 7, 12, 16, 19, 24]][rarity];
+    notes.forEach((note, index) => {
+      const pitch = 349.23 * 2 ** (note / 12);
+      this.tone(pitch, pitch, index === 0 ? 'triangle' : 'sine', .10, .25 + rarity * .06, now + index * .043);
+    });
+  }
+
+  critical() {
+    if (!this.context || this.muted) return;
+    const now = this.context.currentTime;
+    this.tone(94, 40, 'sine', .23, .18, now);
+    this.tone(1318.51, 1318.51, 'sine', .10, .24, now + .016);
+    this.tone(1975.53, 1975.53, 'sine', .042, .17, now + .035);
+  }
+
+  crack(step) {
+    if (!this.context || this.muted) return;
+    const pitch = [392, 523.25, 659.25][step - 1];
+    this.tone(pitch, pitch, 'triangle', .13, .14, this.context.currentTime);
+  }
+
+  tick() {
+    if (!this.context || this.muted) return;
+    this.tone(630, 530, 'sine', .05, .045, this.context.currentTime);
+  }
+
   reward(big = false) {
     if (!this.context || this.muted) return;
     const now = this.context.currentTime;
