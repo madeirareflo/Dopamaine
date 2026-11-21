@@ -1,3 +1,4 @@
+import { Rhythm } from './rhythm.js';
 import { Synth } from './audio.js';
 import { Effects } from './particles.js';
 import { Retention, retentionSave } from './retention.js';
@@ -195,12 +196,13 @@ function action(x, y, key = -1, slide = 0) {
   state.taps++;
   state.best = Math.max(state.best, combo);
   const multiplier = Math.min(10, 1 + Math.floor(combo / 4));
+  const sweet = rhythm.tap(now);
   const mirrored = session.action(now, combo);
   const tuning = shop.effects;
   const flow = frenzy.tap(mode, now);
   if (flow.rhythm) worldMap.record('rhythm');
   if (flow.alternate) worldMap.record('alternation');
-  const started = charge((4 + multiplier * .75 + flow.charge) * tuning.feverRate, now);
+  const started = charge((4 + multiplier * .75 + flow.charge + (sweet ? 1.5 : 0)) * tuning.feverRate, now);
   const fever = now < feverEnd;
   if (fever) impactFx.novaTap(now, tuning.novaDuration);
   const nova = now < impactFx.novaEnd;
@@ -212,7 +214,7 @@ function action(x, y, key = -1, slide = 0) {
   const count = mode === 'keys' ? 7 + tuning.switchSparks : 13;
   const accent = themes[state.theme][1];
   const renderHit = () => effects.emit(x, y, critical ? '#ffe29c' : accent,
-    reducedMotion.matches ? 4 : count * (nova ? 4 : fever ? 3 : 1) + flow.particles + (critical ? 25 : 0),
+    reducedMotion.matches ? 4 : count * (nova ? 4 : fever ? 3 : 1) + flow.particles + (sweet ? 8 : 0) + (critical ? 25 : 0),
     critical ? 'PRISMA ×3!' : label, nova || fever || flow.active || critical, critical ? 26 : 18);
   if (critical) impactFx.hit(now, () => {
     renderHit();
@@ -376,6 +378,13 @@ field.addEventListener('pointerdown', event => {
 field.addEventListener('pointermove', event => {
   const previous = pointers.get(event.pointerId);
   const now = performance.now();
+  if (previous) {
+    const bounds = field.getBoundingClientRect();
+    const speed = Math.hypot(event.clientX - previous.x, event.clientY - previous.y) / Math.max(1, now - (previous.moveTime ?? now - 16));
+    rhythm.trail(event.clientX - bounds.left, event.clientY - bounds.top, speed, now);
+    previous.moveTime = now;
+    if (mode !== 'bubbles') { previous.x = event.clientX; previous.y = event.clientY; }
+  }
   if (now < impactFx.novaEnd) {
     const area = field.getBoundingClientRect();
     impactFx.trace(event.clientX - area.left, event.clientY - area.top, now);
@@ -468,6 +477,7 @@ $('reset-form').addEventListener('submit', event => {
   }
   state = { ...fresh(), muted: state.muted };
   impactFx.reset();
+  rhythm.reset();
   shop.use(state.shop);
   session.reset();
   collectibles.use(state.echoes);
@@ -528,7 +538,9 @@ function frame(now) {
   const baseDt = Math.min(.033, elapsed / 1000);
   frameTime = now;
   const fever = now < feverEnd;
-  const dt = impactFx.motion(now, fever, baseDt);
+  const slowing = rhythm.frame(now, baseDt);
+  if (slowing && Number.isFinite(last)) last += elapsed;
+  const dt = impactFx.motion(now, fever, baseDt) * (slowing ? .3 : 1);
   const nova = now < impactFx.novaEnd;
   const cooled = Math.max(0, combo - Math.floor(Math.max(0, now - last - 470) / 140));
   retention.frame(now);
@@ -562,6 +574,7 @@ function frame(now) {
   if (dt > 0) {
     if (mode === 'bubbles') drawBubbles(now);
     effects.draw(dt, impactFx.hold?.engaged ? impactFx.hold.ratio + .2 : 0, session.active(now));
+    rhythm.draw(baseDt);
   }
   requestAnimationFrame(frame);
 }
@@ -574,6 +587,8 @@ function notice(text) {
   clearTimeout(noticeTimer);
   noticeTimer = setTimeout(() => { banner.hidden = true; }, 2400);
 }
+
+const rhythm = new Rhythm(field, effects, audio, () => reducedMotion.matches);
 
 const collectibles = new Collectibles($('echo-list'), name => {
   notice('✦ Eco raro · ' + name);
@@ -677,10 +692,15 @@ const retention = new Retention(state, {
     if (cooled >= 20) collectibles.unlock('crystal');
   },
   tuning: () => shop.effects,
-  hit: (now, release) => impactFx.hit(now, () => {
-    release();
-    impact = Math.max(impact, 5);
-  }),
+  hit: (now, release) => {
+    const cooled = Math.max(0, combo - Math.floor(Math.max(0, now - last - 470) / 140));
+    const deliver = () => impactFx.hit(performance.now(), () => {
+      release();
+      impact = Math.max(impact, 5);
+    });
+    if (cooled >= 20) rhythm.slow(now, deliver);
+    else deliver();
+  },
   horizon(depth, text) {
     burst(text, 33);
     audio.horizon(depth);

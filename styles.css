@@ -355,3 +355,7 @@ dialog select { width: 100%; margin-top: 5px; }
 .core::after { content: ''; position: absolute; inset: -3px; border-radius: inherit; border: 2px solid #fff9; opacity: var(--note-glow, 0); pointer-events: none; }
 @media (max-width: 380px) { #quick { min-width: 29px; } .hud-tools { gap: 3px; } .combo small { font-size: .58rem; } }
 @media (prefers-reduced-motion: reduce) { .field::after, .core::after { opacity: 0; } }
+
+.field.sweet .orbit { box-shadow: 0 0 24px var(--accent), inset 0 0 18px var(--accent); animation: sweet-glow .65s ease-in-out infinite alternate; }
+@keyframes sweet-glow { from { opacity: .55; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .field.sweet .orbit { animation: none; } }

@@ -61,6 +61,12 @@ export class Synth {
     return pitch;
   }
 
+  rhythmNote(note, volume) {
+    if (!this.context || this.muted) return;
+    const pitch = 440 * 2 ** (atmospheres[this.atmosphere ?? 0][note] / 12);
+    this.tone(pitch, pitch, 'sine', volume, .1, this.context.currentTime);
+  }
+
   echo(note) {
     if (!this.context || this.muted) return;
     const pitch = 440 * 2 ** (scale[note] / 12);
