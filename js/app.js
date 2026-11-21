@@ -37,7 +37,7 @@ const modes = {
 };
 const randomInterval = () => 20 + Math.floor(Math.random() * 26);
 const fresh = () => ({
-  taps: 0, xp: 0, level: 1, best: 0, theme: 0, sound: 0, muted: false,
+  taps: 0, xp: 0, level: 1, best: 0, theme: 0, sound: 0, atmosphere: 0, muted: false,
   themes: [0], sounds: [0], untilBonus: randomInterval(), retention: retentionSave(), shop: shopSave(), worldMap: mapSave(), echoes: [], loadouts: [null, null, null],
 });
 
@@ -56,6 +56,7 @@ function load() {
       }
       if (base[key].includes(saved[selected])) base[selected] = saved[selected];
     }
+    base.atmosphere = Number.isInteger(saved.atmosphere) && saved.atmosphere >= 0 && saved.atmosphere < 4 ? saved.atmosphere : 0;
     base.muted = saved.muted === true;
     base.retention = retentionSave(saved.retention);
     base.shop = shopSave(saved.shop);
@@ -123,6 +124,7 @@ function applyStyle() {
   const [, accent, deep] = themes[state.theme];
   root.style.setProperty('--accent', accent);
   root.style.setProperty('--deep', deep);
+  audio.atmosphere = state.atmosphere;
   audio.setMuted(state.muted);
   $('mute').setAttribute('aria-pressed', state.muted);
   $('mute').textContent = state.muted ? '♫' : '♪';
@@ -435,6 +437,7 @@ function fillSelect(select, items, owned, selection) {
 function renderPanel() {
   fillSelect($('theme'), themes, state.themes, state.theme);
   fillSelect($('sound'), sounds, state.sounds, state.sound);
+  $('atmosphere').value = state.atmosphere;
   $('record').textContent = 'Maior sequência · ' + number.format(state.best);
   $('reset').textContent = 'Resetar progresso';
 }
@@ -443,12 +446,12 @@ $('settings').addEventListener('click', () => {
   renderPanel();
   panel.showModal();
 });
-for (const setting of ['theme', 'sound']) {
+for (const setting of ['theme', 'sound', 'atmosphere']) {
   $(setting).addEventListener('change', event => {
     state[setting] = Number(event.target.value);
     applyStyle();
     save();
-    if (setting === 'sound') audio.play(state.sound, 1, false, mode);
+    if (setting === 'sound' || setting === 'atmosphere') audio.play(state.sound, 1, false, mode);
   });
 }
 $('mute').addEventListener('click', () => {
@@ -615,18 +618,19 @@ const shop = new Shop(state.shop, {
 });
 
 quick = new QuickPanel({
-  read: () => ({ theme: state.theme, skin: state.shop.equipped, sound: state.sound }),
+  read: () => ({ theme: state.theme, skin: state.shop.equipped, sound: state.sound, atmosphere: state.atmosphere }),
   equip(slot) {
     if (!state.themes.includes(slot.theme) || !state.sounds.includes(slot.sound) || !shop.equip(slot.skin)) return false;
     state.theme = slot.theme;
     state.sound = slot.sound;
+    state.atmosphere = slot.atmosphere;
     applyStyle();
     audio.play(state.sound, 1, false, mode);
     save();
     return true;
   },
   save,
-  describe: slot => themes[slot.theme][0] + ' · ' + shop.skinName(slot.skin) + ' · ' + sounds[slot.sound][0],
+  describe: slot => themes[slot.theme][0] + ' · ' + shop.skinName(slot.skin) + ' · ' + sounds[slot.sound][0] + ' · ' + ['Pentatônica Clássica', 'Lídia Sonhadora', 'Menor Cósmica', 'Arcade Retrô'][slot.atmosphere],
 });
 quick.use(state.loadouts);
 

@@ -2,7 +2,7 @@ export function loadoutSave(raw, owned) {
   return Array.from({ length: 3 }, (_, index) => {
     const slot = Array.isArray(raw) ? raw[index] : null;
     return slot && owned.themes.includes(slot.theme) && owned.sounds.includes(slot.sound) &&
-      owned.shop.owned.includes(slot.skin) ? { theme: slot.theme, sound: slot.sound, skin: slot.skin } : null;
+      owned.shop.owned.includes(slot.skin) ? { theme: slot.theme, sound: slot.sound, skin: slot.skin, atmosphere: Number.isInteger(slot.atmosphere) && slot.atmosphere >= 0 && slot.atmosphere < 4 ? slot.atmosphere : 0 } : null;
   });
 }
 
@@ -79,7 +79,7 @@ export class QuickPanel {
       button.setAttribute('aria-label', title + ' · ' + description);
       button.closest('div').querySelector('small').textContent = description;
       button.setAttribute('aria-pressed', Boolean(item && item.theme === current.theme &&
-        item.sound === current.sound && item.skin === current.skin));
+        item.sound === current.sound && item.skin === current.skin && item.atmosphere === current.atmosphere));
     });
   }
 }

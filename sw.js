@@ -1,4 +1,4 @@
-const CACHE = 'prisma-shell-v6';
+const CACHE = 'prisma-shell-v7';
 const SHELL = [
   './', './index.html', './styles.css', './js/app.js', './js/audio.js',
   './js/retention.js', './js/achievements.js', './js/challenges.js', './js/crystal.js',

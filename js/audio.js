@@ -1,4 +1,5 @@
 const scale = [0, 2, 4, 7, 9];
+const atmospheres = [scale, [0, 2, 4, 6, 11], [0, 3, 5, 7, 10], [0, 2, 5, 7, 10]];
 const profiles = [
   { wave: 'triangle', attack: 680, tail: .12, slide: .58 },
   { wave: 'triangle', attack: 360, tail: .078, slide: .36 },
@@ -48,7 +49,7 @@ export class Synth {
   play(profile, combo, fever, mode, mirrored = false) {
     const step = Math.min(combo - 1, 14);
     const degree = step % 5;
-    const semitones = (mirrored ? scale[4 - degree] : scale[degree]) + 12 * Math.floor(step / 5);
+    const semitones = (mirrored ? atmospheres[this.atmosphere ?? 0][4 - degree] : atmospheres[this.atmosphere ?? 0][degree]) + 12 * Math.floor(step / 5);
     const pitch = (mode === 'bubbles' ? 246.94 : 220) * 2 ** (semitones / 12);
     if (!this.context || this.muted) return pitch;
     const now = this.context.currentTime;
