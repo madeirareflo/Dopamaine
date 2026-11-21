@@ -1,0 +1,434 @@
+import { Synth } from './audio.js';
+import { Effects } from './particles.js';
+
+const $ = id => document.getElementById(id);
+const root = document.documentElement;
+const field = $('field');
+const core = $('core');
+const bonus = $('bonus');
+const panel = $('panel');
+const effects = new Effects($('effects'));
+const audio = new Synth();
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+const storageKey = 'prisma.progress.v1';
+const themes = [
+  ['Cyber Neon', '#ed75ff', '#7026bc', 1],
+  ['Ouro Solar', '#ffd578', '#a65b12', 2],
+  ['Plasma Roxo', '#bd9fff', '#5126ca', 3],
+  ['Esmeralda Zen', '#71ffd1', '#0b806a', 4],
+  ['Vaporwave', '#ff93d4', '#3765b9', 5],
+];
+const sounds = [
+  ['Bolha Orgânica', 1], ['Teclado Mecânico', 2], ['Synth Retrô', 3], ['Cristal', 4],
+];
+const modes = {
+  pulse: ['PULSO', 'Toque no núcleo para criar um pulso'],
+  bubbles: ['BOLHAS', 'Toque ou deslize para estourar as bolhas'],
+  keys: ['SWITCH', 'Pressione as teclas e experimente o ritmo'],
+};
+const randomInterval = () => 20 + Math.floor(Math.random() * 26);
+const fresh = () => ({
+  taps: 0, xp: 0, level: 1, best: 0, theme: 0, sound: 0, muted: false,
+  themes: [0], sounds: [0], untilBonus: randomInterval(),
+});
+
+function load() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(storageKey));
+    return { ...fresh(), ...saved };
+  } catch {
+    return fresh();
+  }
+}
+
+let state = load();
+let mode = 'pulse';
+let combo = 0;
+let last = -Infinity;
+let energy = 0;
+let feverEnd = 0;
+let messageUntil = 0;
+let spring = 0;
+let velocity = 0;
+let impact = 0;
+let saveTimer;
+let lastVibration = -Infinity;
+let installPrompt;
+const pointers = new Map();
+const keyTimers = new WeakMap();
+const pendingChain = new Set();
+const number = new Intl.NumberFormat('pt-BR');
+
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = undefined;
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(state));
+  } catch {
+    // The game remains playable with browser storage disabled.
+  }
+}
+
+function vibrate(pattern, now = performance.now()) {
+  if (!navigator.vibrate) return;
+  if (typeof pattern === 'number' && now - lastVibration < 70) return;
+  navigator.vibrate(pattern);
+  lastVibration = now;
+}
+
+function meter() {
+  $('level').textContent = 'Nível ' + state.level;
+  $('score').textContent = number.format(state.taps) + (state.taps === 1 ? ' toque' : ' toques');
+  $('xp').value = 100 * state.xp / levelCost();
+}
+
+function levelCost() {
+  return 80 + (state.level - 1) * 28;
+}
+
+function applyStyle() {
+  const [, accent, deep] = themes[state.theme];
+  root.style.setProperty('--accent', accent);
+  root.style.setProperty('--deep', deep);
+  audio.setMuted(state.muted);
+  $('mute').setAttribute('aria-pressed', state.muted);
+  $('mute').textContent = state.muted ? '♫' : '♪';
+}
+
+function message(text, now, duration = 1800) {
+  $('hint').textContent = text;
+  messageUntil = now + duration;
+}
+
+function localPoint(element) {
+  const bounds = element.getBoundingClientRect();
+  const area = field.getBoundingClientRect();
+  return [bounds.left + bounds.width / 2 - area.left, bounds.top + bounds.height / 2 - area.top];
+}
+
+function gainXP(amount, now) {
+  state.xp += amount;
+  while (state.xp >= levelCost()) {
+    state.xp -= levelCost();
+    state.level++;
+    themes.forEach((theme, index) => {
+      if (theme[3] === state.level && !state.themes.includes(index)) state.themes.push(index);
+    });
+    sounds.forEach((sound, index) => {
+      if (sound[1] === state.level && !state.sounds.includes(index)) state.sounds.push(index);
+    });
+    audio.reward();
+    message('Nível ' + state.level + '!', now);
+  }
+}
+
+function action(x, y) {
+  const now = performance.now();
+  combo = Math.max(0, combo - Math.floor(Math.max(0, now - last - 470) / 140)) + 1;
+  last = now;
+  state.taps++;
+  state.best = Math.max(state.best, combo);
+  const multiplier = Math.min(10, 1 + Math.floor(combo / 4));
+  let fever = now < feverEnd;
+  let started = false;
+  if (!fever) {
+    energy = Math.min(100, energy + 4 + multiplier * .75);
+    if (energy === 100) {
+      feverEnd = now + 8000;
+      fever = started = true;
+      energy = 0;
+      message('FEVER MODE!', now, 2200);
+    }
+  }
+  const label = started ? 'FEVER!' : combo === 25 ? 'INSANE!' : combo === 8 ? 'NICE!' : combo === 16 ? '×5' : '+1';
+  const count = mode === 'keys' ? 7 : 13;
+  effects.emit(x, y, themes[state.theme][1], reducedMotion.matches ? 4 : count * (fever ? 3 : 1), label, fever);
+  audio.play(state.sound, combo, fever, mode);
+  if (started) {
+    audio.reward(true);
+    vibrate([14, 28, 14, 28, 25], now);
+  } else if (combo === 8 || combo === 16 || combo === 25) {
+    audio.reward();
+    vibrate([12, 32, 16], now);
+  } else {
+    vibrate(10, now);
+  }
+  impact = Math.min(4, 1 + multiplier * .3);
+  gainXP(multiplier * (fever ? 2 : 1), now);
+  if (bonus.hidden && --state.untilBonus <= 0) bonus.hidden = false;
+  meter();
+  if (!saveTimer) saveTimer = setTimeout(() => {
+    saveTimer = undefined;
+    save();
+  }, 250);
+}
+
+function collect() {
+  if (bonus.hidden) return;
+  const now = performance.now();
+  const [x, y] = localPoint(bonus);
+  bonus.hidden = true;
+  state.untilBonus = randomInterval();
+  const locked = [
+    ...themes.map((item, index) => [item[0], index, state.themes]),
+    ...sounds.map((item, index) => [item[0], index, state.sounds]),
+  ].filter(([, index, owned]) => !owned.includes(index));
+  const reward = locked[Math.floor(Math.random() * locked.length)];
+  if (reward) reward[2].push(reward[1]);
+  gainXP(48, now);
+  message(reward ? 'Desbloqueado · ' + reward[0] : 'Jackpot · +48 XP', now, 2600);
+  effects.emit(x, y, '#ffdb78', reducedMotion.matches ? 12 : 76, 'JACKPOT!', true);
+  audio.reward(true);
+  vibrate([12, 35, 18], now);
+  meter();
+  save();
+}
+
+const bubbles = Array.from({ length: 16 }, (_, index) => {
+  const element = document.createElement('button');
+  element.type = 'button';
+  element.className = 'bubble';
+  element.setAttribute('aria-label', 'Estourar bolha ' + (index + 1));
+  $('bubbles').append(element);
+  return { element, index, phase: Math.random() * 6.28, until: 0, x: 0, y: 0 };
+});
+const bubbleByElement = new Map(bubbles.map(bubble => [bubble.element, bubble]));
+
+function drawBubbles(now) {
+  const { width, height } = effects;
+  const columns = width > height * 1.35 ? 8 : 4;
+  const rows = 16 / columns;
+  const cell = Math.min(width / columns, height / rows);
+  for (const bubble of bubbles) {
+    if (bubble.until > now) continue;
+    const { element, index, phase } = bubble;
+    const drift = reducedMotion.matches ? 0 : cell * .16;
+    const diameter = cell * (.53 + .22 * Math.sin(phase) ** 2);
+    bubble.x = (index % columns + .5) * width / columns + Math.sin(now / 620 + phase) * drift;
+    bubble.y = (Math.floor(index / columns) + .5) * height / rows + Math.cos(now / 720 + phase) * drift;
+    if (bubble.diameter !== diameter) {
+      element.style.width = element.style.height = diameter + 'px';
+      bubble.diameter = diameter;
+    }
+    element.style.transform = 'translate(' + (bubble.x - diameter / 2) + 'px,' + (bubble.y - diameter / 2) + 'px)';
+    element.hidden = false;
+  }
+}
+
+function pop(bubble, chain = false) {
+  if (bubble.element.hidden) return;
+  bubble.element.hidden = true;
+  bubble.phase = Math.random() * 6.28;
+  bubble.until = performance.now() + 750 + Math.random() * 650;
+  if (chain) {
+    effects.emit(bubble.x, bubble.y, themes[state.theme][1], reducedMotion.matches ? 4 : (performance.now() < feverEnd ? 30 : 10));
+    audio.play(state.sound, Math.max(1, combo), performance.now() < feverEnd, 'bubbles');
+    return;
+  }
+  action(bubble.x, bubble.y);
+  const nearby = bubbles.filter(other => !other.element.hidden &&
+    Math.hypot(other.x - bubble.x, other.y - bubble.y) < bubble.diameter * 2.2);
+  if (nearby.length && Math.random() < .48) {
+    nearby.slice(0, 3).forEach((other, index) => {
+      const timer = setTimeout(() => {
+        pendingChain.delete(timer);
+        if (mode === 'bubbles') pop(other, true);
+      }, 65 * (index + 1));
+      pendingChain.add(timer);
+    });
+  }
+}
+
+for (const symbol of ['◆', '●', '✦', '■', '▲', '◉', '✧', '◇', '✚', '▰', '◒', '✳']) {
+  const button = document.createElement('button');
+  button.className = 'key';
+  button.type = 'button';
+  button.textContent = symbol;
+  button.setAttribute('aria-label', 'Tecla ' + ($('keys').children.length + 1));
+  $('keys').append(button);
+}
+
+function strike(target) {
+  if (target === bonus) {
+    collect();
+  } else if (target === core) {
+    velocity = 9;
+    spring = Math.max(spring, .47);
+    core.style.setProperty('--pulse', reducedMotion.matches ? 0 : spring);
+    action(...localPoint(core));
+  } else if (bubbleByElement.has(target)) {
+    pop(bubbleByElement.get(target));
+  } else if (target?.classList.contains('key')) {
+    clearTimeout(keyTimers.get(target));
+    target.classList.add('active');
+    keyTimers.set(target, setTimeout(() => target.classList.remove('active'), 145));
+    action(...localPoint(target));
+  }
+}
+
+document.addEventListener('pointerdown', () => audio.unlock(), { capture: true });
+document.addEventListener('keydown', () => audio.unlock(), { capture: true });
+field.addEventListener('pointerdown', event => {
+  if (event.button !== 0) return;
+  pointers.set(event.pointerId, [event.clientX, event.clientY]);
+  if (mode === 'bubbles') field.setPointerCapture(event.pointerId);
+  strike(event.target.closest('button'));
+});
+field.addEventListener('pointermove', event => {
+  const previous = pointers.get(event.pointerId);
+  if (!previous || mode !== 'bubbles') return;
+  const [x, y] = previous;
+  const dx = event.clientX - x;
+  const dy = event.clientY - y;
+  const steps = Math.min(30, Math.max(1, Math.ceil(Math.hypot(dx, dy) / 10)));
+  for (let i = 1; i <= steps; i++) {
+    const target = document.elementFromPoint(x + dx * i / steps, y + dy * i / steps);
+    const bubble = bubbleByElement.get(target);
+    if (bubble) pop(bubble);
+  }
+  pointers.set(event.pointerId, [event.clientX, event.clientY]);
+});
+for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+  window.addEventListener(type, event => pointers.delete(event.pointerId));
+}
+window.addEventListener('blur', () => pointers.clear());
+field.addEventListener('click', event => {
+  if (event.detail === 0) strike(event.target.closest('button'));
+});
+
+document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => {
+  mode = button.dataset.mode;
+  for (const timer of pendingChain) clearTimeout(timer);
+  pendingChain.clear();
+  document.querySelectorAll('[data-mode]').forEach(tab => tab.setAttribute('aria-pressed', tab === button));
+  core.hidden = document.querySelector('.orbit').hidden = mode !== 'pulse';
+  $('bubbles').hidden = mode !== 'bubbles';
+  $('keys').hidden = mode !== 'keys';
+  $('mode-name').textContent = modes[mode][0];
+  $('hint').textContent = modes[mode][1];
+  messageUntil = 0;
+}));
+
+function fillSelect(select, items, owned, selection) {
+  select.replaceChildren(...items.map(([name], index) => {
+    const available = owned.includes(index);
+    const option = new Option(available ? name : name + ' · bloqueado', index);
+    option.disabled = !available;
+    option.selected = index === selection;
+    return option;
+  }));
+}
+
+function renderPanel() {
+  fillSelect($('theme'), themes, state.themes, state.theme);
+  fillSelect($('sound'), sounds, state.sounds, state.sound);
+  $('record').textContent = 'Maior sequência · ' + number.format(state.best);
+  $('reset').textContent = 'Resetar progresso';
+}
+
+$('settings').addEventListener('click', () => {
+  renderPanel();
+  panel.showModal();
+});
+for (const setting of ['theme', 'sound']) {
+  $(setting).addEventListener('change', event => {
+    state[setting] = Number(event.target.value);
+    applyStyle();
+    save();
+    if (setting === 'sound') audio.play(state.sound, 1, false, mode);
+  });
+}
+$('mute').addEventListener('click', () => {
+  audio.unlock();
+  state.muted = !state.muted;
+  applyStyle();
+  save();
+});
+$('reset-form').addEventListener('submit', event => {
+  event.preventDefault();
+  if ($('reset').textContent === 'Resetar progresso') {
+    $('reset').textContent = 'Confirmar reset';
+    return;
+  }
+  state = { ...fresh(), muted: state.muted };
+  combo = energy = feverEnd = messageUntil = 0;
+  last = -Infinity;
+  for (const timer of pendingChain) clearTimeout(timer);
+  pendingChain.clear();
+  bonus.hidden = true;
+  $('hint').textContent = modes[mode][1];
+  applyStyle();
+  meter();
+  save();
+  renderPanel();
+});
+
+const install = $('install');
+window.addEventListener('beforeinstallprompt', event => {
+  event.preventDefault();
+  installPrompt = event;
+  install.hidden = false;
+});
+window.addEventListener('appinstalled', () => {
+  installPrompt = undefined;
+  install.hidden = true;
+});
+install.addEventListener('click', async () => {
+  if (!installPrompt) return;
+  const prompt = installPrompt;
+  installPrompt = undefined;
+  install.hidden = true;
+  try {
+    await prompt.prompt();
+  } catch {
+    // The browser controls whether its installation prompt can open.
+  }
+});
+
+window.addEventListener('pagehide', save);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) save();
+});
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js', { scope: './', updateViaCache: 'none' })
+    .catch(error => console.warn('Prisma: serviço offline indisponível.', error));
+}
+
+let frameTime = performance.now();
+function frame(now) {
+  const dt = Math.min(.033, (now - frameTime) / 1000);
+  frameTime = now;
+  const fever = now < feverEnd;
+  const cooled = Math.max(0, combo - Math.floor(Math.max(0, now - last - 470) / 140));
+  if (now - last > 390) energy = Math.max(0, energy - dt * 13);
+  const multiplier = '×' + Math.min(10, 1 + Math.floor(cooled / 4));
+  if ($('combo').textContent !== multiplier) $('combo').textContent = multiplier;
+  const feverLabel = fever ? 'FEVER · ' + Math.ceil((feverEnd - now) / 1000) + ' s' : 'FEVER';
+  if ($('fever-label').textContent !== feverLabel) $('fever-label').textContent = feverLabel;
+  if (fever || $('fever').value !== energy) $('fever').value = fever ? (feverEnd - now) / 80 : energy;
+  root.classList.toggle('fever', fever);
+  if (fever && !reducedMotion.matches) field.style.setProperty('--hue', (now / 6 % 360) + 'deg');
+  if (messageUntil && now >= messageUntil) {
+    $('hint').textContent = modes[mode][1];
+    messageUntil = 0;
+  }
+  if (spring || velocity) {
+    velocity += (-spring * 235 - velocity * 15) * dt;
+    spring += velocity * dt;
+    if (Math.abs(spring) < .001 && Math.abs(velocity) < .015) spring = velocity = 0;
+    core.style.setProperty('--pulse', reducedMotion.matches ? 0 : spring);
+  }
+  if (impact) {
+    impact = Math.max(0, impact - dt * 21);
+    field.style.transform = impact && !reducedMotion.matches
+      ? 'translate(' + Math.sin(now / 8) * impact + 'px,' + Math.cos(now / 7) * impact + 'px)' : '';
+  }
+  if (mode === 'bubbles') drawBubbles(now);
+  effects.draw(dt);
+  requestAnimationFrame(frame);
+}
+
+bonus.hidden = state.untilBonus > 0;
+applyStyle();
+meter();
+requestAnimationFrame(frame);

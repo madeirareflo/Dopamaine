@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#100c18">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="Um playground sensorial com três modos de toque.">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<link rel="stylesheet" href="./styles.css">
+<title>Prisma — Playground sensorial</title>
+<script type="module" src="./js/app.js"></script>
+</head>
+<body>
+<main class="app">
+<header class="header">
+  <div class="brand"><img src="./icons/icon.svg" alt="" width="42" height="42"><div><h1>prisma<span>.</span></h1><p>Playground sensorial</p></div></div>
+  <div class="tools"><button type="button" id="install" hidden>Instalar App</button><button type="button" id="mute" aria-label="Mudo" aria-pressed="false" title="Mudo">♪</button><button type="button" id="settings" aria-label="Personalizar" title="Personalizar">⚙</button></div>
+</header>
+<section class="stage" aria-label="Área de jogo">
+  <div class="hud"><span id="mode-name">PULSO</span><div class="combo"><small>COMBO</small><strong id="combo">×1</strong></div></div>
+  <div id="field" class="field">
+    <div class="orbit" aria-hidden="true"></div>
+    <button type="button" id="core" class="core" aria-label="Pulsar"><span></span></button>
+    <div id="bubbles" class="bubbles" hidden></div>
+    <div id="keys" class="keys" hidden></div>
+    <button type="button" id="bonus" class="bonus" aria-label="Coletar orbe dourado" hidden>✦</button>
+    <canvas id="effects" aria-hidden="true"></canvas>
+  </div>
+  <div class="stage-bottom"><p id="hint" role="status">Toque no núcleo para criar um pulso</p><div class="fever-row"><span id="fever-label">FEVER</span><progress id="fever" aria-label="Energia Fever" max="100" value="0"></progress></div></div>
+</section>
+<nav class="modes" aria-label="Modos de jogo">
+  <button type="button" data-mode="pulse" aria-pressed="true"><span aria-hidden="true">◉</span>Pulso</button>
+  <button type="button" data-mode="bubbles" aria-pressed="false"><span aria-hidden="true">◌</span>Bolhas</button>
+  <button type="button" data-mode="keys" aria-pressed="false"><span aria-hidden="true">▦</span>Switch</button>
+</nav>
+<footer class="progress"><strong id="level">Nível 1</strong><progress id="xp" aria-label="Progresso do nível" max="100" value="0"></progress><span id="score">0 toques</span></footer>
+</main>
+<dialog id="panel">
+<form method="dialog"><header><h2>Personalizar</h2><button aria-label="Fechar">×</button></header></form>
+<label for="theme">Tema</label><select id="theme"></select>
+<label for="sound">Som</label><select id="sound"></select>
+<p id="record"></p>
+<form id="reset-form"><button type="submit" id="reset">Resetar progresso</button></form>
+</dialog>
+</body>
+</html>
