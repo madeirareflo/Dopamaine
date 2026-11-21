@@ -1,3 +1,5 @@
+import { Capsules } from './capsules.js';
+import { Synergy } from './synergy.js';
 import { Rhythm } from './rhythm.js';
 import { Synth } from './audio.js';
 import { Effects } from './particles.js';
@@ -39,7 +41,7 @@ const modes = {
 const randomInterval = () => 20 + Math.floor(Math.random() * 26);
 const fresh = () => ({
   taps: 0, xp: 0, level: 1, best: 0, theme: 0, sound: 0, atmosphere: 0, muted: false,
-  themes: [0], sounds: [0], untilBonus: randomInterval(), retention: retentionSave(), shop: shopSave(), worldMap: mapSave(), echoes: [], loadouts: [null, null, null],
+  themes: [0], sounds: [0], untilBonus: randomInterval(), retention: retentionSave(), shop: shopSave(), worldMap: mapSave(), capsuleCount: 0, echoes: [], loadouts: [null, null, null],
 });
 
 function load() {
@@ -61,6 +63,7 @@ function load() {
     base.muted = saved.muted === true;
     base.retention = retentionSave(saved.retention);
     base.shop = shopSave(saved.shop);
+    base.capsuleCount = Number.isSafeInteger(saved.capsuleCount) && saved.capsuleCount >= 0 ? saved.capsuleCount : 0;
     base.echoes = echoSave(saved.echoes);
     base.loadouts = loadoutSave(saved.loadouts, base);
     base.worldMap = mapSave(saved.worldMap);
@@ -197,6 +200,7 @@ function action(x, y, key = -1, slide = 0) {
   state.best = Math.max(state.best, combo);
   const multiplier = Math.min(10, 1 + Math.floor(combo / 4));
   const sweet = rhythm.tap(now);
+  if (sweet && rhythm.regular >= 15) collectibles.unlock('metronome');
   const mirrored = session.action(now, combo);
   const tuning = shop.effects;
   const flow = frenzy.tap(mode, now);
@@ -209,7 +213,7 @@ function action(x, y, key = -1, slide = 0) {
   const critical = Math.random() < (nova ? .25 : fever ? .15 : .07) + tuning.critical;
   shop.earn(critical ? 'critical' : 'tap');
   if (flow.active) shop.earn('frenzy', critical ? 4 : 1);
-  if (critical) worldMap.record('critical');
+  if (critical) { worldMap.record('critical'); clutch(now); }
   const label = started ? 'FEVER!' : combo === 25 ? 'INSANE!' : combo === 8 ? 'NICE!' : combo === 16 ? '×5' : flow.alternate ? '3 MODOS!' : flow.rhythm ? 'RITMO!' : '+1';
   const count = mode === 'keys' ? 7 + tuning.switchSparks : 13;
   const accent = themes[state.theme][1];
@@ -240,6 +244,7 @@ function action(x, y, key = -1, slide = 0) {
   gainXP(xp + switchBonus, now);
   if (bonus.hidden && --state.untilBonus <= 0) bonus.hidden = false;
   retention.tap(mode, combo, critical, state.muted, pointers.size, key, slide, now);
+  synergies.update(now, feverEnd, impactFx.novaEnd, frenzy.end, session.end);
   worldMap.refresh();
   meter();
   if (!saveTimer) saveTimer = setTimeout(save, 250);
@@ -478,6 +483,8 @@ $('reset-form').addEventListener('submit', event => {
   state = { ...fresh(), muted: state.muted };
   impactFx.reset();
   rhythm.reset();
+  capsules.reset();
+  synergies.reset();
   shop.use(state.shop);
   session.reset();
   collectibles.use(state.echoes);
@@ -546,6 +553,8 @@ function frame(now) {
   retention.frame(now);
   frenzy.frame(now);
   session.frame(now, elapsed / 1000);
+  capsules.frame(now, elapsed, !document.hidden && now - last < 1000);
+  synergies.update(now, feverEnd, impactFx.novaEnd, frenzy.end, session.end);
   if (!fever && !nova && now >= chargeHold && now - last > 390) energy = Math.max(0, energy - dt * 13);
   const multiplier = '×' + Math.min(10, 1 + Math.floor(cooled / 4));
   if ($('combo').textContent !== multiplier) $('combo').textContent = multiplier;
@@ -688,6 +697,7 @@ const retention = new Retention(state, {
   reduced: () => reducedMotion.matches,
   fragments: (event, value) => shop.earn(event, value),
   crystalBreak(now) {
+    synergies.crystal(now, frenzy.end, session.end);
     const cooled = Math.max(0, combo - Math.floor(Math.max(0, now - last - 470) / 140));
     if (cooled >= 20) collectibles.unlock('crystal');
   },
@@ -732,6 +742,38 @@ const frenzy = new Frenzy($('frenzy-status'), field, now => {
   burst('SOBRECARGA!', 70);
   audio.supernova();
   vibrate([14, 24, 21], now);
+});
+const synergies = new Synergy((name, now) => {
+  notice('✦ ' + name);
+  collectibles.unlock('alchemist');
+  shop.earn('synergy', 25);
+  gainXP(35, now);
+  meter();
+  burst(name.toUpperCase(), 80);
+  audio.supernova();
+  vibrate([15, 28, 20], now);
+  if (!reducedMotion.matches) field.animate([{ filter: 'hue-rotate(75deg) brightness(1.3)' }, { filter: 'none' }], 600);
+  save();
+}, notice);
+function clutch(now) {
+  const values = synergies.clutch(now, { fever: feverEnd, frenzy: frenzy.end, mirror: session.end });
+  if (values.fever !== feverEnd || values.frenzy !== frenzy.end || values.mirror !== session.end) collectibles.unlock('clutch');
+  if (values.frenzy !== frenzy.end) frenzy.readyAt += 2500;
+  if (values.mirror !== session.end) session.ready += 2500;
+  feverEnd = values.fever;
+  frenzy.end = values.frenzy;
+  session.end = values.mirror;
+}
+const capsules = new Capsules(field, now => {
+  state.capsuleCount++;
+  if (state.capsuleCount >= 3) collectibles.unlock('capsuleHunter');
+  clutch(now);
+  shop.earn('capsule', 30);
+  grant(0, 20, now);
+  burst('CÁPSULA!', 70, capsules.button);
+  audio.reward(true);
+  vibrate([12, 25, 16], now);
+  save();
 });
 worldMap.refresh();
 bonus.hidden = state.untilBonus > 0;

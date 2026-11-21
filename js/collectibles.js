@@ -1,4 +1,8 @@
 const echoes = [
+  ['metronome', 'Mão de Metrônomo', 'Mantenha o Sweet Spot por 12 toques.', 'M12 3v18M6 21h12M12 5l4 8'],
+  ['alchemist', 'Alquimista', 'Ative uma sinergia.', 'M12 2v20M2 12h20M5 5l14 14'],
+  ['capsuleHunter', 'Caçador de Cápsulas', 'Capture 3 cápsulas.', 'M5 8l7-5 7 5v9l-7 4-7-4Z'],
+  ['clutch', 'No Último Segundo', 'Estenda um evento no limite.', 'M12 3a9 9 0 1 0 9 9M12 6v6l4 3'],
   ['overlap', 'Sol Duplo', 'Ative Supernova durante a Sobrecarga de 10 s.', 'M12 2v20M2 12h20M5 5l14 14m0-14L5 19'],
   ['crystal', 'Fratura Harmônica', 'Quebre um cristal com combo ×20 ou maior.', 'm12 2 7 5v9l-7 6-7-6V7Zm0 0-3 9 3 11 3-11-3-9'],
   ['mirror', 'Reflexo Vivo', 'Faça 12 ações durante o Modo Espelho.', 'M12 3v18M3 7l6 5-6 5m18-10-6 5 6 5'],

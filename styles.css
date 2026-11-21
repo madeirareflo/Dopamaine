@@ -359,3 +359,5 @@ dialog select { width: 100%; margin-top: 5px; }
 .field.sweet .orbit { box-shadow: 0 0 24px var(--accent), inset 0 0 18px var(--accent); animation: sweet-glow .65s ease-in-out infinite alternate; }
 @keyframes sweet-glow { from { opacity: .55; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .field.sweet .orbit { animation: none; } }
+
+.capsule { position: absolute; z-index: 3; right: 8%; bottom: 16%; width: 48px; height: 48px; border: 1px solid #fff4c4; border-radius: 45%; color: #603200; font-size: 25px; background: radial-gradient(circle at 35% 30%, #fffbd5, #ffd46b 50%, #c37c14); box-shadow: 0 0 19px #ffe28a; }
