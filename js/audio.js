@@ -57,6 +57,57 @@ export class Synth {
     if (fever) this.tone(pitch * 2, pitch * 2, 'sine', .045, .21, now + .028);
   }
 
+  echo(note) {
+    if (!this.context || this.muted) return;
+    const pitch = 440 * 2 ** (scale[note] / 12);
+    this.tone(pitch, pitch, 'sine', .05, .2, this.context.currentTime);
+  }
+
+  horizon(depth) {
+    if (!this.context || this.muted) return;
+    const now = this.context.currentTime;
+    [1, 1.5, 2, 3].forEach((ratio, i) => {
+      const pitch = (255 + depth % 5 * 11) * ratio;
+      this.tone(pitch, pitch * 1.007, 'sine', .075, .7, now + i * .095);
+    });
+  }
+
+  supernova() {
+    if (!this.context || this.muted) return;
+    const now = this.context.currentTime;
+    for (let i = 0; i < 10; i++) {
+      const pitch = 330 * 2 ** ((scale[i % 5] + 12 * Math.floor(i / 5)) / 12);
+      this.tone(pitch, pitch, 'triangle', .085, .18, now + i * .043);
+    }
+  }
+
+  gravityStart() {
+    if (!this.context || this.muted || this.gravity) return;
+    const oscillator = this.context.createOscillator();
+    const gain = this.context.createGain();
+    const now = this.context.currentTime;
+    oscillator.type = 'triangle';
+    oscillator.frequency.value = 52;
+    gain.gain.value = 0;
+    gain.gain.setTargetAtTime(.13, now, .08);
+    oscillator.connect(gain).connect(this.output);
+    oscillator.start(now);
+    this.gravity = { oscillator, gain };
+  }
+
+  gravityPitch(ratio) {
+    if (!this.gravity) return;
+    this.gravity.oscillator.frequency.setTargetAtTime(52 + ratio * 70, this.context.currentTime, .045);
+  }
+
+  gravityEnd() {
+    if (!this.gravity) return;
+    const now = this.context.currentTime;
+    this.gravity.gain.gain.setTargetAtTime(0, now, .025);
+    this.gravity.oscillator.stop(now + .14);
+    this.gravity = null;
+  }
+
   celebrate(rarity) {
     if (!this.context || this.muted) return;
     const now = this.context.currentTime;

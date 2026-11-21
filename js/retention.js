@@ -2,12 +2,17 @@ import { Trophies, retentionSave } from './achievements.js';
 import { Lightning } from './challenges.js';
 import { Crystal } from './crystal.js';
 
+import { Streak } from './streak.js';
+import { Horizon } from './horizon.js';
+
 export { retentionSave };
 
 export class Retention {
   constructor(state, game) {
     this.game = game;
     this.state = state;
+    this.horizon = new Horizon(game.horizon);
+    this.horizon.use(state.taps);
     const { audio, vibrate, burst, grant, save } = game;
     this.trophies = new Trophies(state.retention, rarity => {
       audio.celebrate(rarity);
@@ -19,6 +24,7 @@ export class Retention {
       burst('RESGATADO!', 74);
       audio.celebrate(3);
       vibrate([15, 30, 25]);
+      this.streak.trophies(this.trophies.claimedCount(), 24);
       grant(xp, charge, performance.now());
       save();
     }, () => {
@@ -37,8 +43,12 @@ export class Retention {
     this.crystal = new Crystal(state.retention, cracks => {
       audio.crack(cracks);
       vibrate([8 + cracks * 5, 24, 5 + cracks * 4]);
-      burst(cracks < 3 ? cracks + '/3' : 'CRISTAL!', cracks < 3 ? 8 * cracks : 90, document.querySelector('#crystal'));
+      const animation = () => burst(cracks < 3 ? cracks + '/3' : 'CRISTAL!', cracks < 3 ? 8 * cracks : 90, null, point);
+      const point = game.point(document.querySelector('#crystal'));
+      if (cracks === 3) game.hit(performance.now(), animation);
+      else animation();
     }, (kind, now) => {
+      if (kind === 'daily') this.streak.ignite(now);
       this.state.retention.crystals++;
       if (kind === 'bonus' || kind === 'milestone') game.cosmetic();
       this.sync();
@@ -46,9 +56,18 @@ export class Retention {
       grant(kind === 'daily' ? 10 : kind === 'level' ? 18 : 48, kind === 'daily' ? 35 : 10, now);
       save();
     });
+    this.streak = new Streak(state.retention.streak, (days, now) => {
+      this.trophies.update({ streak7: days });
+      grant(0, 25, now);
+      game.notice('🔥 OFENSIVA · ' + days + (days === 1 ? ' DIA!' : ' DIAS!'));
+      burst('', 42, document.querySelector('#streak'));
+      audio.celebrate(3);
+      vibrate([16, 35, 24]);
+      save();
+    }, days => game.notice('🛡️ Escudo usado! Ofensiva de ' + days + (days === 1 ? ' dia preservada' : ' dias preservada')));
     this.resetSession();
+    this.day();
     this.sync(false);
-    if (this.crystal.daily()) save();
   }
 
   resetSession() {
@@ -61,7 +80,7 @@ export class Retention {
     this.criticalTimes.fill(-Infinity);
     this.tapTimes.fill(-Infinity);
     this.keyTimes.fill(-Infinity);
-    this.criticalCursor = this.tapCursor = this.feverCount = 0;
+    this.criticalCursor = this.tapCursor = 0;
     this.last = -Infinity;
     this.flowStart = 0;
   }
@@ -72,25 +91,31 @@ export class Retention {
     this.lightning.reset();
     this.trophies.reset(state.retention);
     this.crystal.use(state.retention);
-    this.crystal.daily();
+    this.horizon.use(state.taps);
+    this.streak.use(state.retention.streak);
+    this.day();
+    this.sync(false);
   }
 
   sync(announce = true) {
-    const { taps, best, themes, sounds, retention } = this.state;
+    const { taps, best, retention } = this.state;
     this.trophies.update({
-      first: taps, rhythm: best, taps100: taps, taps500: taps, taps10000: taps,
+      first: taps, rhythm: best, taps100: taps, taps10000: taps,
       crystal1: retention.crystals, crystal15: retention.crystals,
       flash1: retention.challenges, flash15: retention.challenges,
-      collection: Number(themes.length > 1) + Number(sounds.length > 1),
+      streak7: retention.streak.record,
     }, announce);
+    this.horizon.update(taps, this.trophies.unlockedCount() >= 3);
   }
 
   tap(mode, combo, critical, muted, fingers, key, slide, now) {
     const { retention } = this.state;
     const modes = retention.tapsByMode;
     modes[mode]++;
-    if (now - this.last > 1000) this.flowStart = now;
+    const gap = now - this.last;
+    if (gap > 1000) this.flowStart = now;
     this.last = now;
+    if (gap <= 1000) this.lightning.frame(now, gap, true, mode);
     this.tapTimes[this.tapCursor++ % this.tapTimes.length] = now;
     let hunter = 0;
     if (critical) {
@@ -114,13 +139,15 @@ export class Retention {
       electric: Number(fingers >= 3 || now - this.tapTimes[this.tapCursor % 20] <= 1000),
       flow: (now - this.flowStart) / 1000, hunter,
     });
+    this.horizon.update(this.state.taps, this.trophies.unlockedCount() >= 3);
+    this.streak.tap(now);
     this.lightning.event(mode, 'tap', 1, now);
     this.lightning.event(mode, 'combo', combo, now);
     if (key >= 0) this.lightning.event(mode, 'grid', key, now);
   }
 
   fever(mode, now) {
-    if (mode === 'pulse') this.trophies.update({ fever: 1, triple: ++this.feverCount });
+    if (mode === 'pulse') this.trophies.update({ fever: 1 });
     this.lightning.event(mode, 'fever', 1, now);
   }
 
@@ -130,7 +157,18 @@ export class Retention {
     if (size >= 5) this.game.save();
   }
 
-  frame(now, elapsed, mode, paused) {
-    this.lightning.frame(now, elapsed, !paused && now - this.last < 1000, mode);
+  day() {
+    if (this.streak.enter()) {
+      this.crystal.daily();
+      this.game.save();
+    }
+  }
+
+  frame(now) {
+    if (now >= (this.nextDayCheck ?? 0)) {
+      this.nextDayCheck = now + 1000;
+      this.day();
+    }
+    this.lightning.frame(now, 0, false);
   }
 }

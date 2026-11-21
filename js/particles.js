@@ -43,7 +43,7 @@ export class Effects {
     }
   }
 
-  draw(dt) {
+  draw(dt, gravity = 0) {
     const { ctx } = this;
     ctx.clearRect(0, 0, this.width, this.height);
     const drag = Math.exp(-2.7 * dt);
@@ -54,6 +54,11 @@ export class Effects {
       dot.y += dot.vy * dt;
       dot.vx *= drag;
       dot.vy = dot.vy * drag + 125 * dt;
+      if (gravity) {
+        const pull = gravity * dt * 22;
+        dot.vx += (this.width / 2 - dot.x) * pull;
+        dot.vy += (this.height / 2 - dot.y) * pull;
+      }
       ctx.globalAlpha = Math.max(0, dot.life / dot.duration) ** 1.5;
       ctx.fillStyle = dot.color;
       ctx.fillRect(dot.x, dot.y, dot.size, dot.size);

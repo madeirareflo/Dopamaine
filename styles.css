@@ -199,3 +199,35 @@ dialog select { width: 100%; margin-top: 5px; }
 @keyframes glow-pulse { 50% { box-shadow: 0 0 10px #f4a9ff72; } }
 @media (max-height: 470px) { #crystal { top: 22%; } #crystal svg { width: 37px; height: 36px; } #almost { min-height: 20px; } }
 @media (prefers-reduced-motion: reduce) { #trophy-badge, #almost.near, #lightning.urgent, .orbit::after { animation: none !important; } }
+
+/* Chama Prisma e Horizonte */
+#streak { --flame: #ff9c5b; display: flex; align-items: center; gap: 2px; min-height: 34px; padding: 2px 4px; border: 0; border-radius: 9px; background: none; color: var(--flame); font: 700 .8rem system-ui; white-space: nowrap; }
+#streak[data-tier="1"] { --flame: #ffdc65; }
+#streak[data-tier="2"] { --flame: #79d7ff; }
+#streak[data-tier="3"] { --flame: #d1a0ff; }
+#streak[data-tier="4"] { --flame: #ffd0ed; }
+#streak[data-lit="false"] { color: #a195ad; opacity: .64; }
+#streak[data-lit="true"] svg { filter: drop-shadow(0 0 5px var(--flame)); }
+#streak[data-tier="4"][data-lit="true"] svg { animation: prism-flame 2.7s linear infinite; }
+@keyframes prism-flame { to { filter: hue-rotate(360deg) drop-shadow(0 0 5px #ffc8f4); } }
+#streak-panel p { margin-block: 7px; color: var(--soft); }
+#streak-panel #streak-current { color: var(--text); font-size: 1.6rem; font-weight: 760; }
+#streak-panel progress { width: 100%; }
+#streak-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; list-style: none; padding: 0; margin-block: 12px; }
+#streak-week li { display: grid; place-items: center; min-height: 30px; border: 1px solid var(--line); border-radius: 50%; color: #afa0bb; }
+#streak-week [data-kind="lit"] { color: #ffbf73; background: #71421245; }
+#streak-week [data-kind="shield"] { color: #97dcff; background: #20547653; }
+#streak-notice { position: absolute; z-index: 6; bottom: 5px; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 16px); border: 1px solid #ffc58a85; border-radius: 9px; padding: 5px 9px; color: #ffe0ad; background: #241729ed; pointer-events: none; text-align: center; font-size: .76rem; }
+#horizon { border: 1px solid #896bb481; border-radius: 10px; background: linear-gradient(110deg, #221638, #151b30); padding: 7px 9px; margin-top: 5px; flex: none; }
+#horizon > div { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px; }
+#horizon small, #horizon p { color: var(--soft); font-size: .72rem; }
+#horizon output { margin-left: auto; color: #bceff6; overflow-wrap: anywhere; font-size: .8rem; }
+#horizon progress { width: 100%; height: 4px; margin: 5px 0; }
+.field.charging .core { transform: scale(calc(1 + var(--gravity, 0) * .17), calc(1 - var(--gravity, 0) * .23)); box-shadow: 0 0 46px var(--accent), inset 0 -12px 32px var(--accent); }
+.field.charging .orbit { outline: 2px solid var(--accent); outline-offset: -6px; }
+.field.supernova { background: radial-gradient(ellipse at center, #7affd329, #963cda22 46%, transparent 74%); }
+.field.supernova .core { box-shadow: 0 0 44px #8affeb, 0 0 62px #f688ff, inset 0 0 22px #fff5ce; }
+@media (prefers-reduced-motion: reduce) {
+  #streak[data-tier="4"] svg { animation: none !important; }
+  .field.charging .core { transform: none; }
+}

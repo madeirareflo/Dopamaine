@@ -2,6 +2,8 @@ import { Synth } from './audio.js';
 import { Effects } from './particles.js';
 import { Retention, retentionSave } from './retention.js';
 
+import { Impact } from './impact.js';
+
 const $ = id => document.getElementById(id);
 const root = document.documentElement;
 const field = $('field');
@@ -140,7 +142,7 @@ function gainXP(amount, now) {
 }
 
 function charge(amount, now) {
-  if (now < feverEnd) return false;
+  if (now < feverEnd || now < impactFx.novaEnd) return false;
   energy = Math.min(100, energy + amount);
   if (energy < 100) return false;
   feverEnd = now + 8000;
@@ -155,13 +157,13 @@ function charge(amount, now) {
 function grant(xp, amount, now) {
   gainXP(xp, now);
   chargeHold = Math.max(chargeHold, now + 12000);
-  if (now < feverEnd) energy = Math.min(100, energy + amount);
+  if (now < feverEnd || now < impactFx.novaEnd) energy = Math.min(100, energy + amount);
   else charge(amount, now);
   meter();
 }
 
-function burst(label, count, target) {
-  const [x, y] = target ? localPoint(target) : [effects.width / 2, effects.height * .55];
+function burst(label, count, target, point) {
+  const [x, y] = point ?? (target ? localPoint(target) : [effects.width / 2, effects.height * .55]);
   effects.emit(x, y, '#ffdb88', reducedMotion.matches ? 10 : count, label, true, 24);
 }
 
@@ -174,13 +176,23 @@ function action(x, y, key = -1, slide = 0) {
   const multiplier = Math.min(10, 1 + Math.floor(combo / 4));
   const started = charge(4 + multiplier * .75, now);
   const fever = now < feverEnd;
-  const critical = Math.random() < (fever ? .15 : .07);
+  if (fever) impactFx.novaTap(now);
+  const nova = now < impactFx.novaEnd;
+  const critical = Math.random() < (nova ? .25 : fever ? .15 : .07);
   const label = started ? 'FEVER!' : combo === 25 ? 'INSANE!' : combo === 8 ? 'NICE!' : combo === 16 ? '×5' : '+1';
   const count = mode === 'keys' ? 7 : 13;
-  effects.emit(x, y, critical ? '#ffe29c' : themes[state.theme][1],
-    reducedMotion.matches ? 4 : count * (fever ? 3 : 1) + (critical ? 25 : 0),
-    critical ? 'PRISMA! ×3' : label, fever || critical, critical ? 26 : 18);
-  audio.play(state.sound, combo, fever, mode);
+  const accent = themes[state.theme][1];
+  const renderHit = () => effects.emit(x, y, critical ? '#ffe29c' : accent,
+    reducedMotion.matches ? 4 : count * (nova ? 4 : fever ? 3 : 1) + (critical ? 25 : 0),
+    critical ? 'PRISMA ×3!' : label, nova || fever || critical, critical ? 26 : 18);
+  if (critical) impactFx.hit(now, () => {
+    renderHit();
+    impact = Math.max(impact, 4.5);
+  });
+  else renderHit();
+  impactFx.echo(now, x, y, accent, combo);
+  impactFx.trace(x, y, now);
+  audio.play(state.sound, combo, fever || nova, mode);
   if (critical) {
     audio.critical();
     vibrate([12, 28, 18], now);
@@ -189,8 +201,8 @@ function action(x, y, key = -1, slide = 0) {
     audio.reward();
     vibrate([12, 32, 16], now);
   } else if (!started) vibrate(10, now);
-  impact = Math.min(4, 1 + multiplier * .3);
-  gainXP(multiplier * (fever ? 2 : 1) * (critical ? 3 : 1), now);
+  if (!critical) impact = Math.min(4, 1 + multiplier * .3);
+  gainXP(multiplier * (fever || nova ? 2 : 1) * (critical ? 3 : 1), now);
   if (bonus.hidden && --state.untilBonus <= 0) bonus.hidden = false;
   retention.tap(mode, combo, critical, state.muted, pointers.size, key, slide, now);
   meter();
@@ -320,11 +332,18 @@ document.addEventListener('keydown', () => audio.unlock(), { capture: true });
 field.addEventListener('pointerdown', event => {
   if (event.button !== 0) return;
   pointers.set(event.pointerId, { x: event.clientX, y: event.clientY, count: 0, lastPop: -Infinity });
-  if (mode === 'bubbles') field.setPointerCapture(event.pointerId);
-  strike(event.target.closest('button'));
+  const target = event.target.closest('button');
+  if (mode === 'bubbles' || target === core) field.setPointerCapture(event.pointerId);
+  if (mode === 'pulse' && target === core) impactFx.begin(event.pointerId, performance.now());
+  strike(target);
 });
 field.addEventListener('pointermove', event => {
   const previous = pointers.get(event.pointerId);
+  const now = performance.now();
+  if (now < impactFx.novaEnd) {
+    const area = field.getBoundingClientRect();
+    impactFx.trace(event.clientX - area.left, event.clientY - area.top, now);
+  }
   if (!previous || mode !== 'bubbles') return;
   const { x, y } = previous;
   const dx = event.clientX - x;
@@ -341,14 +360,22 @@ field.addEventListener('pointermove', event => {
   previous.y = event.clientY;
 });
 for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
-  window.addEventListener(type, event => pointers.delete(event.pointerId));
+  window.addEventListener(type, event => {
+    pointers.delete(event.pointerId);
+    if (type === 'pointerup') impactFx.end(event.pointerId, performance.now());
+    else impactFx.cancelHold(event.pointerId);
+  });
 }
-window.addEventListener('blur', () => pointers.clear());
+window.addEventListener('blur', () => {
+  pointers.clear();
+  impactFx.cancelHold();
+});
 field.addEventListener('click', event => {
   if (event.detail === 0) strike(event.target.closest('button'));
 });
 
 document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => {
+  impactFx.cancelHold();
   mode = button.dataset.mode;
   for (const timer of pendingChain) clearTimeout(timer);
   pendingChain.clear();
@@ -403,6 +430,9 @@ $('reset-form').addEventListener('submit', event => {
     return;
   }
   state = { ...fresh(), muted: state.muted };
+  impactFx.reset();
+  clearTimeout(noticeTimer);
+  $('streak-notice').hidden = true;
   retention.reset(state);
   chargeHold = 0;
   combo = energy = feverEnd = messageUntil = 0;
@@ -442,7 +472,7 @@ install.addEventListener('click', async () => {
 window.addEventListener('pagehide', save);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) save();
-  else if (retention.crystal.daily()) save();
+  else retention.day();
 });
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js', { scope: './', updateViaCache: 'none' })
@@ -452,17 +482,21 @@ if ('serviceWorker' in navigator) {
 let frameTime = performance.now();
 function frame(now) {
   const elapsed = Math.min(100, now - frameTime);
-  const dt = Math.min(.033, elapsed / 1000);
+  const baseDt = Math.min(.033, elapsed / 1000);
   frameTime = now;
   const fever = now < feverEnd;
+  const dt = impactFx.motion(now, fever, baseDt);
+  const nova = now < impactFx.novaEnd;
   const cooled = Math.max(0, combo - Math.floor(Math.max(0, now - last - 470) / 140));
-  retention.frame(now, elapsed, mode, document.hidden || panel.open || $('trophy-panel').open);
-  if (!fever && now >= chargeHold && now - last > 390) energy = Math.max(0, energy - dt * 13);
+  retention.frame(now);
+  if (!fever && !nova && now >= chargeHold && now - last > 390) energy = Math.max(0, energy - dt * 13);
   const multiplier = '×' + Math.min(10, 1 + Math.floor(cooled / 4));
   if ($('combo').textContent !== multiplier) $('combo').textContent = multiplier;
-  const feverLabel = fever ? 'FEVER · ' + Math.ceil((feverEnd - now) / 1000) + ' s' : 'FEVER';
+  const feverLabel = nova ? 'SUPERNOVA · ' + Math.ceil((impactFx.novaEnd - now) / 1000) + ' s'
+    : fever ? 'SOBRECARGA · ' + Math.floor(impactFx.novaCharge * 100 / 36) + '%' : 'FEVER';
   if ($('fever-label').textContent !== feverLabel) $('fever-label').textContent = feverLabel;
-  if (fever || $('fever').value !== energy) $('fever').value = fever ? (feverEnd - now) / 80 : energy;
+  const displayedCharge = nova ? (impactFx.novaEnd - now) / 50 : fever ? impactFx.novaCharge * 100 / 36 : energy;
+  if ($('fever').value !== displayedCharge) $('fever').value = displayedCharge;
   root.classList.toggle('fever', fever);
   if (fever && !reducedMotion.matches) field.style.setProperty('--hue', (now / 6 % 360) + 'deg');
   if (messageUntil && now >= messageUntil) {
@@ -480,13 +514,65 @@ function frame(now) {
     field.style.transform = impact && !reducedMotion.matches
       ? 'translate(' + Math.sin(now / 8) * impact + 'px,' + Math.cos(now / 7) * impact + 'px)' : '';
   }
-  if (mode === 'bubbles') drawBubbles(now);
-  effects.draw(dt);
+  if (dt > 0) {
+    if (mode === 'bubbles') drawBubbles(now);
+    effects.draw(dt, impactFx.hold?.engaged ? impactFx.hold.ratio + .2 : 0);
+  }
   requestAnimationFrame(frame);
 }
 
+let noticeTimer;
+function notice(text) {
+  const banner = $('streak-notice');
+  banner.textContent = text;
+  banner.hidden = false;
+  clearTimeout(noticeTimer);
+  noticeTimer = setTimeout(() => { banner.hidden = true; }, 2400);
+}
+
+const impactFx = new Impact(field, audio, effects, () => reducedMotion.matches, {
+  start(now) {
+    if (mode === 'pulse') retention.trophies.update({ nova: 1 });
+    burst('SUPERNOVA!', 82);
+    vibrate([16, 30, 28], now);
+    save();
+  },
+  detonate() {
+    burst('SUPERNOVA!', 150);
+    audio.supernova();
+    vibrate([20, 25, 35]);
+    impact = 8;
+  },
+  gravity(ratio, now) {
+    const bonus = Math.round(ratio * 12);
+    combo = Math.max(0, combo - Math.floor(Math.max(0, now - last - 470) / 140)) + bonus;
+    last = now;
+    state.best = Math.max(state.best, combo);
+    retention.trophies.update({ rhythm: combo, pulse50: combo, pulse100: combo, gravity: Number(ratio >= 1) });
+    burst(bonus ? '+' + bonus + ' COMBO' : 'GRAVIDADE', Math.round(24 + ratio * 85), core);
+    velocity = 10 + ratio * 12;
+    impact = Math.max(impact, 2 + ratio * 5);
+    charge(6 + ratio * 17, now);
+    audio.critical();
+    vibrate([12, 25, 12 + Math.round(ratio * 14)], now);
+    save();
+  },
+});
 const retention = new Retention(state, {
-  audio, vibrate, burst, cosmetic: unlockCosmetic, grant, save, reduced: () => reducedMotion.matches,
+  audio, vibrate, burst, notice, point: localPoint, cosmetic: unlockCosmetic, grant, save,
+  reduced: () => reducedMotion.matches,
+  hit: (now, release) => impactFx.hit(now, () => {
+    release();
+    impact = Math.max(impact, 5);
+  }),
+  horizon(depth, text) {
+    burst(text, 33);
+    audio.horizon(depth);
+    if (!reducedMotion.matches) {
+      $('effects').animate([{ transform: 'translateX(-3px)', filter: 'hue-rotate(80deg)' },
+        { transform: 'translateX(2px)', filter: 'hue-rotate(-40deg)' }, { transform: 'none', filter: 'none' }], 190);
+    }
+  },
 });
 bonus.hidden = state.untilBonus > 0;
 applyStyle();

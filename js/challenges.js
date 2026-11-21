@@ -1,7 +1,7 @@
 const challenges = {
   pulse: [['tap', 30, 12, '30 toques'], ['fever', 1, 15, 'Ative o Fever'], ['combo', 25, 15, 'Combo ×25']],
   bubbles: [['tap', 12, 12, 'Estoure 12 bolhas'], ['chain', 4, 15, 'Cadeia de 4 bolhas']],
-  keys: [['grid', 16, 10, 'Acenda 16 teclas'], ['tap', 25, 10, 'Ritmo turbo · 25 toques']],
+  keys: [['grid', 16, 12, 'Acenda 16 teclas'], ['tap', 25, 12, 'Ritmo turbo · 25 toques']],
 };
 const interval = () => (45 + Math.random() * 45) * 1000;
 

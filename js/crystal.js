@@ -1,10 +1,9 @@
 const names = { daily: 'Cristal Diário', bonus: 'Cristal Dourado', level: 'Cristal de Nível', milestone: 'Cristal Prismático' };
-const dayKey = date => [date.getFullYear(), date.getMonth() + 1, date.getDate()].join('-');
+import { localDay } from './streak.js';
 
 export class Crystal {
   constructor(data, onHit, onBreak) {
     this.button = document.querySelector('#crystal');
-    this.streak = document.querySelector('#streak');
     this.onHit = onHit;
     this.onBreak = onBreak;
     this.use(data);
@@ -17,10 +16,9 @@ export class Crystal {
   }
 
   daily(date = new Date()) {
-    const key = dayKey(date);
-    if (this.data.day === key) return false;
-    const yesterday = new Date(date.getFullYear(), date.getMonth(), date.getDate() - 1);
-    this.data.streak = this.data.day === dayKey(yesterday) ? this.data.streak + 1 : 1;
+    const key = localDay(date);
+    const previous = this.data.day.split('-').map(part => part.padStart(2, '0')).join('-');
+    if (previous >= key) return false;
     this.data.day = key;
     if (!this.data.queue.includes('daily')) {
       this.data.queue.splice(this.data.cracks ? 1 : 0, 0, 'daily');
@@ -51,9 +49,7 @@ export class Crystal {
   }
 
   paint() {
-    const { queue, cracks, streak } = this.data;
-    this.streak.textContent = streak ? '◇ ' + streak + (streak === 1 ? ' dia' : ' dias') : '';
-    this.streak.hidden = !streak;
+    const { queue, cracks } = this.data;
     this.button.hidden = !queue.length;
     this.button.dataset.cracks = cracks;
     this.button.dataset.kind = queue[0] ?? '';

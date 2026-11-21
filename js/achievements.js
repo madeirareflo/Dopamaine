@@ -1,3 +1,5 @@
+import { streakSave } from './streak.js';
+
 const trophy = (id, title, rarity, goal, unit, secret = false) => ({ id, title, rarity, goal, unit, secret });
 const catalog = [
   trophy('first', 'Primeiro Pulso', 0, 1, 'toques'),
@@ -5,7 +7,8 @@ const catalog = [
   trophy('modes', 'Explorador Sensorial', 0, 3, 'modos'),
   trophy('critical', 'Primeiro Crítico', 0, 1, 'críticos'),
   trophy('fever', 'Sobrecarga', 0, 1, 'ativações no Pulso'),
-  trophy('triple', 'Trinca em Chamas', 2, 3, 'ativações no Pulso na sessão'),
+  trophy('nova', 'Supernova', 2, 1, 'Supernova no Pulso'),
+  trophy('gravity', 'Centro de Gravidade', 2, 1, 'carga completa'),
   trophy('pulse50', 'Pulso ×50', 1, 50, 'combo'),
   trophy('pulse100', 'Pulso ×100', 3, 100, 'combo'),
   trophy('chain', 'Reação em Cadeia', 1, 5, 'bolhas na cadeia'),
@@ -17,17 +20,23 @@ const catalog = [
   trophy('flash1', 'Primeiro Relâmpago', 1, 1, 'desafios'),
   trophy('flash15', 'Tempestade', 3, 15, 'desafios · marco em 5'),
   trophy('taps100', 'Cem Toques', 0, 100, 'toques'),
-  trophy('taps500', 'Quinhentos Toques', 1, 500, 'toques'),
-  trophy('taps10000', 'Dez Mil Toques', 3, 10000, 'toques · marco em 2.000'),
-  trophy('collection', 'Paleta e Timbre', 2, 2, 'tipos de cosmético novos'),
+  trophy('taps10000', 'Dez Mil Toques', 3, 10000, 'toques · marcos em 500 e 2.000'),
+  trophy('streak7', 'Chama Prisma', 2, 7, 'dias de ofensiva · marco em 3'),
   trophy('silk', 'Mãos de Seda', 1, 30, 'toques no mudo', true),
   trophy('electric', 'Dedos Elétricos', 2, 1, 'pico', true),
   trophy('flow', 'Fluxo Puro', 3, 30, 'segundos em fluxo', true),
-  trophy('hunter', 'Caçador de Críticos', 2, 3, 'críticos em 10 s', true),
+  trophy('hunter', 'Sorte Prismática', 2, 3, 'críticos em 10 s', true),
 ];
+const legacy = [
+  trophy('triple', 'Trinca em Chamas', 2, 3, ''),
+  trophy('taps500', 'Quinhentos Toques', 1, 500, ''),
+  trophy('collection', 'Paleta e Timbre', 2, 2, ''),
+];
+const allTrophies = [...catalog, ...legacy];
+const legacyIds = new Set(legacy.map(item => item.id));
 const rarity = ['Bronze', 'Prata', 'Ouro', 'Prisma'];
 const glyph = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M7 3h10v5c0 4-2 6-5 6S7 12 7 8V3Zm0 2H3v2c0 3 2 4 5 4m9-6h4v2c0 3-2 4-5 4m-4 3v5m-4 2h8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-const milestones = { taps10000: [2000, 10000], crystal15: [5, 15], flash15: [5, 15] };
+const milestones = { taps10000: [500, 2000], crystal15: [5], flash15: [5], streak7: [3] };
 const count = value => Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
 const record = value => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 
@@ -37,11 +46,11 @@ export function retentionSave(raw) {
   const earned = record(data.earned);
   const pending = ['daily', 'bonus', 'level', 'milestone'];
   return {
-    progress: Object.fromEntries(catalog.map(item => [item.id, Math.min(item.goal, count(progress[item.id]))])),
-    earned: Object.fromEntries(catalog.filter(item => earned[item.id] === 1 || earned[item.id] === 2).map(item => [item.id, earned[item.id]])),
+    progress: Object.fromEntries(allTrophies.map(item => [item.id, Math.min(item.goal, count(progress[item.id]))])),
+    earned: Object.fromEntries(allTrophies.filter(item => earned[item.id] === 1 || earned[item.id] === 2).map(item => [item.id, earned[item.id]])),
     tapsByMode: Object.fromEntries(['pulse', 'bubbles', 'keys'].map(mode => [mode, count(record(data.tapsByMode)[mode])])),
     day: typeof data.day === 'string' ? data.day : '',
-    streak: count(data.streak), crystals: count(data.crystals), challenges: count(data.challenges),
+    streak: streakSave(data.streak, data.day, count(data.streak)), crystals: count(data.crystals), challenges: count(data.challenges),
     queue: Array.isArray(data.queue) ? data.queue.filter(item => pending.includes(item)) : [],
     cracks: Math.min(2, count(data.cracks)),
   };
@@ -125,8 +134,8 @@ export class Trophies {
 
   refresh() {
     const earned = Object.values(this.data.earned);
-    const claimed = earned.filter(value => value === 2).length;
-    const available = earned.length - claimed;
+    const claimed = catalog.filter(item => this.data.earned[item.id] === 2).length;
+    const available = earned.filter(value => value === 1).length;
     document.documentElement.dataset.aura = Math.floor(claimed * 4 / catalog.length);
     const badge = document.querySelector('#trophy-badge');
     badge.textContent = available;
@@ -151,6 +160,14 @@ export class Trophies {
     if (this.panel.open) this.render();
   }
 
+  unlockedCount() {
+    return catalog.reduce((total, item) => total + Number(Boolean(this.data.earned[item.id])), 0);
+  }
+
+  claimedCount() {
+    return catalog.reduce((total, item) => total + Number(this.data.earned[item.id] === 2), 0);
+  }
+
   open(id) {
     this.filter = 'all';
     this.panel.querySelector('#claim-feedback').textContent = '';
@@ -168,7 +185,7 @@ export class Trophies {
   claim(id) {
     let xp = 0;
     let charge = 0;
-    for (const item of catalog) {
+    for (const item of allTrophies) {
       if ((id === 'all' || id === item.id) && this.data.earned[item.id] === 1) {
         this.data.earned[item.id] = 2;
         xp += [20, 35, 55, 85][item.rarity];
@@ -182,7 +199,7 @@ export class Trophies {
   }
 
   render() {
-    const unlocked = Object.keys(this.data.earned).length;
+    const unlocked = this.unlockedCount();
     const pct = Math.floor(unlocked * 100 / catalog.length);
     this.panel.querySelector('#trophy-summary').textContent = unlocked + ' / ' + catalog.length + ' Troféus — ' + pct + '%';
     this.panel.querySelector('#trophy-progress').value = pct;
@@ -191,8 +208,9 @@ export class Trophies {
     const scroll = this.list.scrollTop;
     const focused = this.list.contains(document.activeElement) ? document.activeElement.dataset.claim : undefined;
     this.list.replaceChildren();
-    for (const item of catalog) {
+    for (const item of allTrophies) {
       const status = this.data.earned[item.id];
+      if (legacyIds.has(item.id) && !status) continue;
       if ((this.filter === 'claim' && status !== 1) || (this.filter === 'earned' && !status)) continue;
       const row = document.createElement('article');
       row.className = 'trophy-row';
@@ -209,7 +227,7 @@ export class Trophies {
       content.append(title);
       if (!hidden) {
         const detail = document.createElement('small');
-        detail.textContent = rarity[item.rarity] + (status === 2 ? ' · Resgatado' : status === 1 ? ' · Desbloqueado' : ' · ' + this.data.progress[item.id] + '/' + item.goal + ' ' + item.unit);
+        detail.textContent = rarity[item.rarity] + (legacyIds.has(item.id) ? ' · Arquivado' : '') + (status === 2 ? ' · Resgatado' : status === 1 ? ' · Desbloqueado' : ' · ' + this.data.progress[item.id] + '/' + item.goal + ' ' + item.unit);
         content.append(detail);
         if (!status) {
           const bar = document.createElement('progress');
